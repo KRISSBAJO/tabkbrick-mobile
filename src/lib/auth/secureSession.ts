@@ -13,9 +13,9 @@ export type PersistedMobileSession = {
 
 export async function readPersistedSession(): Promise<PersistedMobileSession> {
   const [refreshToken, trustedDeviceToken, userText] = await Promise.all([
-    SecureStore.getItemAsync(REFRESH_TOKEN_KEY),
-    SecureStore.getItemAsync(TRUSTED_DEVICE_TOKEN_KEY),
-    SecureStore.getItemAsync(USER_KEY),
+    readPersistedValue(REFRESH_TOKEN_KEY),
+    readPersistedValue(TRUSTED_DEVICE_TOKEN_KEY),
+    readPersistedValue(USER_KEY),
   ]);
 
   return {
@@ -31,12 +31,12 @@ export async function persistAuthResponse(auth: AuthResponse) {
   }
 
   const writes = [
-    SecureStore.setItemAsync(REFRESH_TOKEN_KEY, auth.refreshToken),
-    SecureStore.setItemAsync(USER_KEY, JSON.stringify(auth.user)),
+    writePersistedValue(REFRESH_TOKEN_KEY, auth.refreshToken),
+    writePersistedValue(USER_KEY, JSON.stringify(auth.user)),
   ];
 
   if (auth.trustedDeviceToken) {
-    writes.push(SecureStore.setItemAsync(TRUSTED_DEVICE_TOKEN_KEY, auth.trustedDeviceToken));
+    writes.push(writePersistedValue(TRUSTED_DEVICE_TOKEN_KEY, auth.trustedDeviceToken));
   }
 
   await Promise.all(writes);
@@ -44,10 +44,36 @@ export async function persistAuthResponse(auth: AuthResponse) {
 
 export async function clearPersistedSession() {
   await Promise.all([
-    SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
-    SecureStore.deleteItemAsync(TRUSTED_DEVICE_TOKEN_KEY),
-    SecureStore.deleteItemAsync(USER_KEY),
+    deletePersistedValue(REFRESH_TOKEN_KEY),
+    deletePersistedValue(TRUSTED_DEVICE_TOKEN_KEY),
+    deletePersistedValue(USER_KEY),
   ]);
+}
+
+async function readPersistedValue(key: string) {
+  try {
+    const value = await SecureStore.getItemAsync(key);
+    return value || null;
+  } catch {
+    return null;
+  }
+}
+
+async function writePersistedValue(key: string, value: string) {
+  await SecureStore.setItemAsync(key, value);
+}
+
+async function deletePersistedValue(key: string) {
+  try {
+    await SecureStore.deleteItemAsync(key);
+  } catch {
+    try {
+      await SecureStore.setItemAsync(key, "");
+    } catch {
+      // SecureStore can be partially unavailable in Expo Go/native version mismatches.
+      // Session cleanup should never block the app from booting.
+    }
+  }
 }
 
 function parseUser(value: string | null) {
