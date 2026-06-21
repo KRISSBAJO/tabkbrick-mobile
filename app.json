@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "TaskBricks",
+    "slug": "taskbricks-mobile",
+    "scheme": "taskbricks",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.taskbricks.mobile"
+    },
+    "android": {
+      "package": "com.taskbricks.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#111111"
+      }
+    },
+    "plugins": ["expo-router", "expo-secure-store"],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "apiUrl": "http://localhost:4070/api/v1"
+    }
+  }
+}

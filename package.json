@@ -1,0 +1,47 @@
+{
+  "name": "taskbricks-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "export:web": "expo export --platform web",
+    "api:generate": "openapi-typescript ../taskbricks-be/docs/api/openapi.json --default-non-nullable false -o src/lib/generated/openapi.ts",
+    "api:check": "npm run api:generate && git diff --exit-code -- src/lib/generated/openapi.ts",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run api:check && npm run lint && npm run typecheck"
+  },
+  "dependencies": {
+    "expo": "^56.0.12",
+    "expo-constants": "~56.0.18",
+    "expo-crypto": "~56.0.4",
+    "expo-linking": "~56.0.14",
+    "expo-router": "^56.2.11",
+    "expo-secure-store": "~56.0.4",
+    "expo-status-bar": "~56.0.4",
+    "expo-system-ui": "~56.0.5",
+    "expo-web-browser": "~56.0.5",
+    "lucide-react-native": "^1.21.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.85.3",
+    "react-native-gesture-handler": "~2.31.1",
+    "react-native-reanimated": "4.3.1",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "^4.25.2",
+    "react-native-svg": "15.15.4",
+    "react-native-web": "^0.21.2"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.61.0",
+    "@typescript-eslint/parser": "^8.61.0",
+    "@types/react": "^19.2.17",
+    "eslint": "^9.39.4",
+    "openapi-typescript": "^7.13.0",
+    "typescript": "^5.9.3"
+  }
+}
