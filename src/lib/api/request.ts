@@ -72,11 +72,19 @@ export class ApiError extends Error {
 
 function resolveUrl(path: string) {
   if (/^https?:\/\//i.test(path)) {
-    return path;
+    return withMobileClientHint(path);
   }
 
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${API_BASE_URL}${normalizedPath}`;
+  return withMobileClientHint(`${API_BASE_URL}${normalizedPath}`);
+}
+
+function withMobileClientHint(url: string) {
+  if (!/\/auth(?:\/|$)/.test(url)) {
+    return url;
+  }
+
+  return `${url}${url.includes("?") ? "&" : "?"}client=mobile`;
 }
 
 function resolveOpenApiPath<TPath extends OpenApiPath, TMethod extends OpenApiMethod<TPath>>(
