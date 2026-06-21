@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
-import { ShieldCheck } from "lucide-react-native";
+import { Eye, EyeOff, ShieldCheck } from "lucide-react-native";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
@@ -15,6 +15,7 @@ export default function LoginScreen() {
   const [tenantSlug, setTenantSlug] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [mfaCode, setMfaCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -61,7 +62,28 @@ export default function LoginScreen() {
             <View style={styles.stack}>
               <Field label="Tenant" value={tenantSlug} onChangeText={setTenantSlug} placeholder="demo" />
               <Field label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" placeholder="you@company.com" />
-              <Field label="Password" value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry />
+              <Field
+                label="Password"
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Password"
+                secureTextEntry={!passwordVisible}
+                rightAccessory={(
+                  <Pressable
+                    accessibilityLabel={passwordVisible ? "Hide password" : "Show password"}
+                    accessibilityRole="button"
+                    hitSlop={8}
+                    onPress={() => setPasswordVisible((visible) => !visible)}
+                    style={styles.passwordToggle}
+                  >
+                    {passwordVisible ? (
+                      <EyeOff color={colors.inkSoft} size={20} strokeWidth={2.4} />
+                    ) : (
+                      <Eye color={colors.inkSoft} size={20} strokeWidth={2.4} />
+                    )}
+                  </Pressable>
+                )}
+              />
               {error ? <Text style={styles.error}>{error}</Text> : null}
               <Button label="Sign in" loading={loading} onPress={submitPassword} />
             </View>
@@ -127,6 +149,12 @@ const styles = StyleSheet.create({
     color: colors.foreground,
     fontSize: 22,
     fontWeight: "900",
+  },
+  passwordToggle: {
+    alignItems: "center",
+    height: 44,
+    justifyContent: "center",
+    width: 44,
   },
   stack: {
     gap: 14,
