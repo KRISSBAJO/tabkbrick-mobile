@@ -1,61 +1,194 @@
-import { BarChart3, CalendarDays, FolderOpen, ListChecks } from "lucide-react-native";
-import { StyleSheet, Text, View } from "react-native";
-import { Screen } from "@/components/ui/Screen";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { router } from "expo-router";
+import { ArrowRight, BarChart3, CalendarDays, FolderOpen, ListChecks, Plus, TriangleAlert } from "lucide-react-native";
+import { Button } from "@/components/ui/Button";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { Surface } from "@/components/ui/Surface";
 import { MetricCard } from "@/features/workspace/MetricCard";
 import { WorkspaceHeader } from "@/features/workspace/WorkspaceHeader";
+import { formatDate, humanize, isOverdue, projectHealth, statusTone } from "@/features/projects/projectFormat";
+import { listMeetings, listProjects, listTasks } from "@/lib/api";
 import { useAuthSession } from "@/lib/auth/AuthSessionProvider";
 import { colors, radii } from "@/lib/theme/tokens";
-
-const workQueue = [
-  { label: "Board review", meta: "Product launch / 8 tasks", tone: "yellow" as const },
-  { label: "Client kickoff", meta: "Today, 14:00", tone: "blue" as const },
-  { label: "Risk register", meta: "3 open high-priority risks", tone: "red" as const },
-];
+import type { Meeting, Project, Task } from "@/lib/types";
 
 export default function DashboardScreen() {
-  const { user } = useAuthSession();
+  const { accessToken, user } = useAuthSession();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async (showRefreshing = false) => {
+    if (!accessToken) return;
+    if (showRefreshing) setRefreshing(true);
+    else setLoading(true);
+    setError("");
+    try {
+      const [projectPage, taskPage, meetingPage] = await Promise.all([
+        listProjects(accessToken, { limit: 50 }),
+        listTasks(accessToken, { limit: 50, sortBy: "updatedAt", sortDirection: "desc" }),
+        listMeetings(accessToken, { limit: 20 }),
+      ]);
+      setProjects(Array.isArray(projectPage) ? projectPage : projectPage.data);
+      setTasks(Array.isArray(taskPage) ? taskPage : taskPage.data);
+      setMeetings(Array.isArray(meetingPage) ? meetingPage : meetingPage.data);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to load dashboard.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [accessToken]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const stats = useMemo(() => {
+    const activeProjects = projects.filter((project) => project.status === "ACTIVE").length;
+    const movingTasks = tasks.filter((task) => !["DONE", "CANCELLED"].includes(task.status)).length;
+    const atRiskProjects = projects.filter((project) => projectHealth(project).tone === "red" || projectHealth(project).tone === "yellow").length;
+    const today = new Date().toISOString().slice(0, 10);
+    const meetingsToday = meetings.filter((meeting) => meeting.startAt.slice(0, 10) === today).length;
+    return { activeProjects, atRiskProjects, meetingsToday, movingTasks };
+  }, [meetings, projects, tasks]);
+
+  const priorityTasks = useMemo(() => (
+    tasks
+      .filter((task) => task.priority === "HIGH" || task.priority === "URGENT" || task.priority === "CRITICAL" || isOverdue(task.dueDate))
+      .slice(0, 4)
+  ), [tasks]);
+
+  const visibleProjects = projects.slice(0, 4);
 
   if (!user) return null;
 
   return (
-    <Screen>
+    <ScrollView
+      contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={colors.foreground} />}
+      showsVerticalScrollIndicator={false}
+      style={styles.safe}
+    >
       <WorkspaceHeader user={user} />
 
       <View style={styles.hero}>
         <Text style={styles.eyebrow}>Command center</Text>
         <Text style={styles.title}>Good to see you, {user.firstName || "there"}.</Text>
-        <Text style={styles.subtitle}>Your delivery queue is organized by work that needs attention first.</Text>
-      </View>
-
-      <View style={styles.metrics}>
-        <MetricCard icon={FolderOpen} label="Active projects" tone="dark" value="12" />
-        <MetricCard icon={ListChecks} label="Tasks moving" tone="yellow" value="38" />
-      </View>
-      <View style={styles.metrics}>
-        <MetricCard icon={CalendarDays} label="Meetings today" value="4" />
-        <MetricCard icon={BarChart3} label="At-risk work" value="3" />
-      </View>
-
-      <Surface eyebrow="Priority" title="Work queue">
-        <View style={styles.queue}>
-          {workQueue.map((item) => (
-            <View key={item.label} style={styles.queueRow}>
-              <View style={styles.queueText}>
-                <Text style={styles.queueTitle}>{item.label}</Text>
-                <Text style={styles.queueMeta}>{item.meta}</Text>
-              </View>
-              <StatusPill label="Open" tone={item.tone} />
-            </View>
-          ))}
+        <Text style={styles.subtitle}>Live delivery health, priority work, and schedule signals.</Text>
+        <View style={styles.heroActions}>
+          <Button
+            label="New project"
+            onPress={() => router.push("/(workspace)/projects/new")}
+            rightIcon={<Plus color={colors.black} size={16} strokeWidth={2.8} />}
+            style={styles.heroButton}
+          />
+          <Button label="Projects" onPress={() => router.push("/(workspace)/projects")} style={styles.heroButton} variant="outline" />
         </View>
-      </Surface>
-    </Screen>
+      </View>
+
+      {loading ? (
+        <View style={styles.loading}>
+          <ActivityIndicator color={colors.foreground} />
+          <Text style={styles.muted}>Loading workspace dashboard</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{error}</Text>
+          <Button label="Retry" onPress={() => void load()} variant="outline" />
+        </View>
+      ) : (
+        <>
+          <View style={styles.metrics}>
+            <MetricCard icon={FolderOpen} label="Active projects" tone="dark" value={String(stats.activeProjects)} />
+            <MetricCard icon={ListChecks} label="Tasks moving" tone="yellow" value={String(stats.movingTasks)} />
+          </View>
+          <View style={styles.metrics}>
+            <MetricCard icon={CalendarDays} label="Meetings today" value={String(stats.meetingsToday)} />
+            <MetricCard icon={BarChart3} label="At-risk projects" value={String(stats.atRiskProjects)} />
+          </View>
+
+          <Surface eyebrow="Portfolio" title="Project health">
+            <View style={styles.stack}>
+              {visibleProjects.length ? visibleProjects.map((project) => {
+                const health = projectHealth(project);
+                return (
+                  <Pressable
+                    accessibilityRole="button"
+                    key={project.id}
+                    onPress={() => router.push({ pathname: "/(workspace)/projects/[projectId]", params: { projectId: project.id } })}
+                    style={styles.projectRow}
+                  >
+                    <View style={styles.rowText}>
+                      <Text numberOfLines={1} style={styles.rowTitle}>{project.name}</Text>
+                      <Text style={styles.rowMeta}>{project.key} - {project.progress}% - Due {formatDate(project.dueDate)}</Text>
+                    </View>
+                    <StatusPill label={health.label} tone={health.tone} />
+                    <ArrowRight color={colors.inkSoft} size={16} />
+                  </Pressable>
+                );
+              }) : (
+                <Text style={styles.muted}>No projects yet.</Text>
+              )}
+            </View>
+          </Surface>
+
+          <Surface eyebrow="Priority" title="Work queue">
+            <View style={styles.stack}>
+              {priorityTasks.length ? priorityTasks.map((task) => (
+                <View key={task.id} style={styles.taskRow}>
+                  <View style={styles.alertIcon}>
+                    <TriangleAlert color={colors.warning} size={17} />
+                  </View>
+                  <View style={styles.rowText}>
+                    <Text numberOfLines={1} style={styles.rowTitle}>{task.title}</Text>
+                    <Text style={styles.rowMeta}>{task.project?.name || task.type} - Due {formatDate(task.dueDate)}</Text>
+                  </View>
+                  <StatusPill label={humanize(task.priority)} tone={statusTone(task.priority)} />
+                </View>
+              )) : (
+                <Text style={styles.muted}>No high-priority work in the current task window.</Text>
+              )}
+            </View>
+          </Surface>
+        </>
+      )}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  alertIcon: {
+    alignItems: "center",
+    backgroundColor: colors.yellowSoft,
+    borderRadius: radii.md,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
+  },
+  content: {
+    gap: 18,
+    padding: 18,
+    paddingBottom: 112,
+  },
+  errorBox: {
+    backgroundColor: colors.redSoft,
+    borderColor: "#fecaca",
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    gap: 12,
+    padding: 14,
+  },
+  errorText: {
+    color: colors.danger,
+    fontSize: 13,
+    fontWeight: "800",
+    lineHeight: 18,
+  },
   eyebrow: {
     color: colors.primary,
     fontSize: 11,
@@ -66,23 +199,34 @@ const styles = StyleSheet.create({
   hero: {
     backgroundColor: colors.black,
     borderRadius: radii["2xl"],
-    gap: 8,
+    gap: 12,
     padding: 20,
+  },
+  heroActions: {
+    flexDirection: "row",
+    gap: 10,
+    paddingTop: 4,
+  },
+  heroButton: {
+    flex: 1,
+  },
+  loading: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+    paddingVertical: 18,
   },
   metrics: {
     flexDirection: "row",
     gap: 12,
   },
-  queue: {
-    gap: 10,
-  },
-  queueMeta: {
+  muted: {
     color: colors.inkSoft,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "700",
-    marginTop: 3,
+    lineHeight: 19,
   },
-  queueRow: {
+  projectRow: {
     alignItems: "center",
     backgroundColor: colors.muted,
     borderColor: colors.line,
@@ -92,13 +236,27 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 12,
   },
-  queueText: {
-    flex: 1,
+  rowMeta: {
+    color: colors.inkSoft,
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 3,
   },
-  queueTitle: {
+  rowText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  rowTitle: {
     color: colors.foreground,
     fontSize: 14,
     fontWeight: "900",
+  },
+  safe: {
+    backgroundColor: colors.background,
+    flex: 1,
+  },
+  stack: {
+    gap: 10,
   },
   subtitle: {
     color: "rgba(255,255,255,0.65)",
@@ -106,6 +264,16 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 20,
     maxWidth: 300,
+  },
+  taskRow: {
+    alignItems: "center",
+    backgroundColor: colors.muted,
+    borderColor: colors.line,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    padding: 12,
   },
   title: {
     color: colors.white,

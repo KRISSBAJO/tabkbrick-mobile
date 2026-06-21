@@ -10,19 +10,25 @@ type FieldProps = TextInputProps & {
   rightAccessory?: ReactNode;
 };
 
-export function Field({ helperText, label, labelRight, leftAccessory, rightAccessory, style, ...props }: FieldProps) {
+export function Field({ helperText, label, labelRight, leftAccessory, multiline, rightAccessory, style, ...props }: FieldProps) {
   return (
     <View style={styles.wrap}>
       <View style={styles.labelRow}>
         <Text style={styles.label}>{label}</Text>
         {labelRight}
       </View>
-      <View style={styles.inputWrap}>
+      <View style={[styles.inputWrap, multiline ? styles.inputWrapMultiline : null]}>
         {leftAccessory ? <View style={styles.accessory}>{leftAccessory}</View> : null}
         <TextInput
           autoCapitalize="none"
+          multiline={multiline}
           placeholderTextColor="#a39d90"
-          style={[styles.input, leftAccessory ? styles.inputWithLeftAccessory : null, style]}
+          style={[
+            styles.input,
+            multiline ? styles.inputMultiline : null,
+            leftAccessory ? styles.inputWithLeftAccessory : null,
+            style,
+          ]}
           {...props}
         />
         {rightAccessory ? <View style={styles.accessory}>{rightAccessory}</View> : null}
@@ -57,6 +63,11 @@ const styles = StyleSheet.create({
   inputWithLeftAccessory: {
     paddingLeft: 0,
   },
+  inputMultiline: {
+    height: 104,
+    paddingTop: 13,
+    textAlignVertical: "top",
+  },
   inputWrap: {
     alignItems: "center",
     backgroundColor: colors.white,
@@ -66,6 +77,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     height: 48,
     overflow: "hidden",
+  },
+  inputWrapMultiline: {
+    alignItems: "flex-start",
+    height: 106,
   },
   label: {
     color: colors.foreground,

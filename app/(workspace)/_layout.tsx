@@ -31,6 +31,8 @@ export default function WorkspaceTabsLayout() {
     >
       <Tabs.Screen name="index" options={{ title: "Home", tabBarIcon: ({ color }) => <LayoutDashboard color={color} size={20} /> }} />
       <Tabs.Screen name="projects" options={{ title: "Projects", tabBarIcon: ({ color }) => <FolderOpen color={color} size={20} /> }} />
+      <Tabs.Screen name="projects/[projectId]" options={{ href: null }} />
+      <Tabs.Screen name="projects/new" options={{ href: null }} />
       <Tabs.Screen name="tasks" options={{ title: "Tasks", tabBarIcon: ({ color }) => <ListChecks color={color} size={20} /> }} />
       <Tabs.Screen name="meetings" options={{ title: "Meetings", tabBarIcon: ({ color }) => <CalendarDays color={color} size={20} /> }} />
       <Tabs.Screen name="profile" options={{ title: "Profile", tabBarIcon: ({ color }) => <UserRound color={color} size={20} /> }} />
