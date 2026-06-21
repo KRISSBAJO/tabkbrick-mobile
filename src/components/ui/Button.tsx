@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, type PressableProps, type StyleProp, type ViewStyle } from "react-native";
 import { colors, radii } from "@/lib/theme/tokens";
 
@@ -5,12 +6,14 @@ type ButtonVariant = "primary" | "dark" | "outline" | "ghost";
 
 type ButtonProps = PressableProps & {
   label: string;
+  leftIcon?: ReactNode;
   loading?: boolean;
+  rightIcon?: ReactNode;
   style?: StyleProp<ViewStyle>;
   variant?: ButtonVariant;
 };
 
-export function Button({ disabled, label, loading = false, style, variant = "primary", ...props }: ButtonProps) {
+export function Button({ disabled, label, leftIcon, loading = false, rightIcon, style, variant = "primary", ...props }: ButtonProps) {
   const inactive = disabled || loading;
 
   return (
@@ -29,9 +32,13 @@ export function Button({ disabled, label, loading = false, style, variant = "pri
       {loading ? (
         <ActivityIndicator color={variant === "primary" ? colors.black : colors.white} size="small" />
       ) : (
-        <Text style={[styles.label, variant === "primary" || variant === "outline" || variant === "ghost" ? styles.darkLabel : styles.lightLabel]}>
-          {label}
-        </Text>
+        <>
+          {leftIcon}
+          <Text style={[styles.label, variant === "primary" || variant === "outline" || variant === "ghost" ? styles.darkLabel : styles.lightLabel]}>
+            {label}
+          </Text>
+          {rightIcon}
+        </>
       )}
     </Pressable>
   );
@@ -42,6 +49,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderRadius: radii.md,
     borderWidth: 1,
+    flexDirection: "row",
+    gap: 8,
     height: 48,
     justifyContent: "center",
     paddingHorizontal: 16,

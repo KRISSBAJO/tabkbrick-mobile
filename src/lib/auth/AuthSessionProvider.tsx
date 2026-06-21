@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { getMe, login, logoutSession, refreshSession, verifyMfaLogin, type LoginPayload } from "@/lib/api";
+import { getMe, login, logoutSession, refreshSession, register, verifyMfaLogin, type LoginPayload, type RegisterPayload } from "@/lib/api";
 import { clearPersistedSession, persistAuthResponse, readPersistedSession } from "@/lib/auth/secureSession";
 import type { AuthResponse, AuthUser, MfaChallengeResponse } from "@/lib/types";
 
@@ -7,13 +7,19 @@ type SignInResult =
   | { status: "authenticated" }
   | { status: "mfa"; challenge: MfaChallengeResponse };
 
+type SignUpResult =
+  | { status: "authenticated" }
+  | { devLink?: string; message: string; status: "verification" };
+
 type AuthSessionContextValue = {
   accessToken: string | null;
+  cancelMfa: () => void;
   initializing: boolean;
   mfaChallenge: MfaChallengeResponse | null;
   refresh: () => Promise<void>;
   signIn: (payload: Omit<LoginPayload, "trustedDeviceToken">) => Promise<SignInResult>;
   signOut: () => Promise<void>;
+  signUp: (payload: RegisterPayload) => Promise<SignUpResult>;
   user: AuthUser | null;
   verifyMfa: (code: string, rememberDevice: boolean) => Promise<void>;
 };
@@ -94,6 +100,24 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
     return { status: "authenticated" };
   }, [applyAuthResponse]);
 
+  const signUp = useCallback(async (payload: RegisterPayload) => {
+    const result = await register(payload);
+    if (!("accessToken" in result)) {
+      return {
+        devLink: result.devLink,
+        message: result.message,
+        status: "verification" as const,
+      };
+    }
+
+    await applyAuthResponse(result);
+    return { status: "authenticated" as const };
+  }, [applyAuthResponse]);
+
+  const cancelMfa = useCallback(() => {
+    setMfaChallenge(null);
+  }, []);
+
   const verifyMfa = useCallback(async (code: string, rememberDevice: boolean) => {
     if (!mfaChallenge) {
       throw new Error("No MFA challenge is active.");
@@ -151,14 +175,16 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AuthSessionContextValue>(() => ({
     accessToken,
+    cancelMfa,
     initializing,
     mfaChallenge,
     refresh,
     signIn,
     signOut,
+    signUp,
     user,
     verifyMfa,
-  }), [accessToken, initializing, mfaChallenge, refresh, signIn, signOut, user, verifyMfa]);
+  }), [accessToken, cancelMfa, initializing, mfaChallenge, refresh, signIn, signOut, signUp, user, verifyMfa]);
 
   return (
     <AuthSessionContext.Provider value={value}>
