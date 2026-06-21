@@ -18,6 +18,15 @@ $env:EXPO_PUBLIC_API_URL="https://api.example.com/api/v1"
 npm run start
 ```
 
+If you are using `cmd.exe`, use `set` instead of PowerShell's `$env:` syntax:
+
+```bat
+set EXPO_PUBLIC_API_URL=http://10.0.0.54:4070/api/v1
+npm run start:expo-go
+```
+
+`start:expo-go` runs Expo on port `9040` with LAN mode and `--clear`.
+
 For an Android emulator hitting a backend on your machine, use `http://10.0.2.2:4070/api/v1`.
 
 ## Contract
