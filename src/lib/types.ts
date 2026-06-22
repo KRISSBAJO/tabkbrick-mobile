@@ -4,9 +4,11 @@ type Schemas = components["schemas"];
 
 export type AuthResponse = Schemas["AuthResponse"];
 export type AuthUser = Schemas["AuthUser"];
+export type BoardColumn = Schemas["BoardColumn"];
 export type MfaChallengeResponse = Schemas["MfaChallengeResponse"];
 export type Meeting = Schemas["Meeting"];
 export type Project = Schemas["Project"];
+export type ProjectBoard = Schemas["ProjectBoard"];
 export type ProjectBudget = Schemas["ProjectBudget"];
 export type ProjectChangeRequest = Schemas["ProjectChangeRequest"];
 export type ProjectDecision = Schemas["ProjectDecision"];
