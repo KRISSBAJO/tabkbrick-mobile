@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     transform: [{ translateY: 1 }],
   },
   progressFill: {
-    backgroundColor: colors.black,
+    backgroundColor: colors.primary,
     borderRadius: 99,
     height: 7,
   },

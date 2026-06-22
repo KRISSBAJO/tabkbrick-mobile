@@ -22,7 +22,7 @@ export function Field({ helperText, label, labelRight, leftAccessory, multiline,
         <TextInput
           autoCapitalize="none"
           multiline={multiline}
-          placeholderTextColor="#a39d90"
+          placeholderTextColor="#aaa298"
           style={[
             styles.input,
             multiline ? styles.inputMultiline : null,
@@ -41,9 +41,9 @@ export function Field({ helperText, label, labelRight, leftAccessory, multiline,
 const styles = StyleSheet.create({
   accessory: {
     alignItems: "center",
-    height: 46,
+    height: 50,
     justifyContent: "center",
-    width: 46,
+    width: 48,
   },
   helper: {
     color: colors.inkSoft,
@@ -57,30 +57,30 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontWeight: "700",
-    height: 46,
-    paddingHorizontal: 14,
+    height: 50,
+    paddingHorizontal: 15,
   },
   inputWithLeftAccessory: {
     paddingLeft: 0,
   },
   inputMultiline: {
-    height: 104,
-    paddingTop: 13,
+    height: 112,
+    paddingTop: 14,
     textAlignVertical: "top",
   },
   inputWrap: {
     alignItems: "center",
     backgroundColor: colors.white,
     borderColor: colors.line,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     borderWidth: 1,
     flexDirection: "row",
-    height: 48,
+    height: 52,
     overflow: "hidden",
   },
   inputWrapMultiline: {
     alignItems: "flex-start",
-    height: 106,
+    height: 114,
   },
   label: {
     color: colors.foreground,
@@ -93,6 +93,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   wrap: {
-    gap: 7,
+    gap: 8,
   },
 });

@@ -244,10 +244,10 @@ const styles = StyleSheet.create({
   section: {
     backgroundColor: colors.panel,
     borderColor: colors.line,
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     borderWidth: 1,
     gap: 14,
-    padding: 14,
+    padding: 16,
   },
   sectionHeader: {
     alignItems: "center",

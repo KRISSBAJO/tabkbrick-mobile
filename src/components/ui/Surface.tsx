@@ -25,22 +25,22 @@ export function Surface({ children, eyebrow, style, title }: SurfaceProps) {
 
 const styles = StyleSheet.create({
   eyebrow: {
-    color: colors.inkSoft,
+    color: colors.primaryDark,
     fontSize: 11,
     fontWeight: "900",
     letterSpacing: 0,
     textTransform: "uppercase",
   },
   header: {
-    gap: 3,
-    marginBottom: 12,
+    gap: 4,
+    marginBottom: 14,
   },
   surface: {
     backgroundColor: colors.panel,
     borderColor: colors.line,
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     borderWidth: 1,
-    padding: 16,
+    padding: 18,
     ...shadow.card,
   },
   title: {

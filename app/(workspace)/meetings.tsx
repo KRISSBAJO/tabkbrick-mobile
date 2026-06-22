@@ -8,7 +8,7 @@ export default function MeetingsScreen() {
     const data = Array.isArray(page) ? page : page.data;
 
     return data.map((meeting) => ({
-      description: meeting.startsAt ? new Date(meeting.startsAt).toLocaleString() : meeting.locationMode,
+      description: meeting.startAt ? new Date(meeting.startAt).toLocaleString() : meeting.locationMode,
       id: meeting.id,
       status: meeting.status,
       title: meeting.title,

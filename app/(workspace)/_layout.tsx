@@ -23,8 +23,11 @@ export default function WorkspaceTabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        tabBarActiveBackgroundColor: colors.primary,
         tabBarActiveTintColor: colors.black,
-        tabBarInactiveTintColor: colors.inkSoft,
+        tabBarHideOnKeyboard: true,
+        tabBarInactiveTintColor: "rgba(255,255,255,0.72)",
+        tabBarItemStyle: styles.tabItem,
         tabBarLabelStyle: styles.label,
         tabBarStyle: styles.tabBar,
       }}
@@ -42,8 +45,9 @@ export default function WorkspaceTabsLayout() {
 
 const styles = StyleSheet.create({
   label: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "900",
+    marginTop: 2,
   },
   loading: {
     alignItems: "center",
@@ -52,10 +56,22 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   tabBar: {
-    backgroundColor: colors.white,
-    borderTopColor: colors.line,
-    height: 78,
-    paddingBottom: 16,
+    backgroundColor: colors.black,
+    borderColor: "rgba(255,255,255,0.06)",
+    borderRadius: 30,
+    borderTopColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    bottom: 18,
+    height: 64,
+    left: 20,
+    paddingBottom: 8,
+    paddingHorizontal: 8,
     paddingTop: 8,
+    position: "absolute",
+    right: 20,
+  },
+  tabItem: {
+    borderRadius: 24,
+    marginHorizontal: 2,
   },
 });

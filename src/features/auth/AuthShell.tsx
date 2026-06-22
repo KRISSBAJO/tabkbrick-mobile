@@ -53,7 +53,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   safe: {
-    backgroundColor: "#fffdf3",
+    backgroundColor: colors.background,
     flex: 1,
   },
   subtitle: {

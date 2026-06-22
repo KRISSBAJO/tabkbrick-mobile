@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { Screen } from "@/components/ui/Screen";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { Surface } from "@/components/ui/Surface";
 import { useAuthSession } from "@/lib/auth/AuthSessionProvider";
@@ -47,30 +48,36 @@ export function ResourceListScreen({ emptyText, load, title }: ResourceListScree
   }, [accessToken, load]);
 
   return (
-    <Surface eyebrow="Workspace" title={title}>
-      {loading ? (
-        <View style={styles.loading}>
-          <ActivityIndicator color={colors.foreground} />
-          <Text style={styles.muted}>Loading</Text>
-        </View>
-      ) : error ? (
-        <Text style={styles.error}>{error}</Text>
-      ) : items.length ? (
-        <View style={styles.list}>
-          {items.map((item) => (
-            <View key={item.id} style={styles.row}>
-              <View style={styles.rowText}>
-                <Text numberOfLines={1} style={styles.title}>{item.title}</Text>
-                {item.description ? <Text numberOfLines={1} style={styles.description}>{item.description}</Text> : null}
+    <Screen>
+      <View style={styles.header}>
+        <Text style={styles.eyebrow}>Workspace</Text>
+        <Text style={styles.screenTitle}>{title}</Text>
+      </View>
+      <Surface>
+        {loading ? (
+          <View style={styles.loading}>
+            <ActivityIndicator color={colors.foreground} />
+            <Text style={styles.muted}>Loading</Text>
+          </View>
+        ) : error ? (
+          <Text style={styles.error}>{error}</Text>
+        ) : items.length ? (
+          <View style={styles.list}>
+            {items.map((item) => (
+              <View key={item.id} style={styles.row}>
+                <View style={styles.rowText}>
+                  <Text numberOfLines={1} style={styles.title}>{item.title}</Text>
+                  {item.description ? <Text numberOfLines={1} style={styles.description}>{item.description}</Text> : null}
+                </View>
+                {item.status ? <StatusPill label={item.status.replace(/_/g, " ")} tone={toneFromStatus(item.status)} /> : null}
               </View>
-              {item.status ? <StatusPill label={item.status.replace(/_/g, " ")} tone={toneFromStatus(item.status)} /> : null}
-            </View>
-          ))}
-        </View>
-      ) : (
-        <Text style={styles.muted}>{emptyText}</Text>
-      )}
-    </Surface>
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.muted}>{emptyText}</Text>
+        )}
+      </Surface>
+    </Screen>
   );
 }
 
@@ -98,6 +105,15 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     padding: 12,
   },
+  eyebrow: {
+    color: colors.primaryDark,
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  header: {
+    gap: 3,
+  },
   list: {
     gap: 10,
   },
@@ -114,9 +130,9 @@ const styles = StyleSheet.create({
   },
   row: {
     alignItems: "center",
-    backgroundColor: colors.muted,
+    backgroundColor: colors.white,
     borderColor: colors.line,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     borderWidth: 1,
     flexDirection: "row",
     gap: 10,
@@ -130,5 +146,11 @@ const styles = StyleSheet.create({
     color: colors.foreground,
     fontSize: 14,
     fontWeight: "900",
+  },
+  screenTitle: {
+    color: colors.foreground,
+    fontSize: 30,
+    fontWeight: "900",
+    letterSpacing: 0,
   },
 });

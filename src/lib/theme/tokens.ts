@@ -1,24 +1,25 @@
 export const colors = {
-  background: "#ffffff",
-  foreground: "#111111",
+  background: "#f7f3ed",
+  foreground: "#171511",
   panel: "#ffffff",
-  panelMuted: "#f5f2e6",
-  line: "#e8e0c8",
+  panelMuted: "#fbf7ef",
+  line: "#ece4d7",
   primary: "#ffd400",
   primaryDark: "#e7bc00",
-  accent: "#0256ff",
-  inkSoft: "#68645b",
+  accent: "#2563eb",
+  inkSoft: "#716b61",
   danger: "#b91c1c",
-  warning: "#b45309",
-  success: "#047857",
-  black: "#111111",
+  warning: "#c26a1b",
+  success: "#059669",
+  black: "#10100f",
   white: "#ffffff",
-  slate: "#344054",
-  muted: "#f8f7f2",
+  slate: "#35302a",
+  muted: "#fbf8f1",
   blueSoft: "#eef4ff",
   greenSoft: "#ecfdf3",
   redSoft: "#fef2f2",
-  yellowSoft: "#fff7d6",
+  yellowSoft: "#fff1d9",
+  orangeSoft: "#fff3e8",
 } as const;
 
 export const spacing = {
@@ -32,11 +33,11 @@ export const spacing = {
 } as const;
 
 export const radii = {
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
-  "2xl": 24,
+  sm: 10,
+  md: 14,
+  lg: 18,
+  xl: 22,
+  "2xl": 28,
 } as const;
 
 export const typography = {
@@ -51,15 +52,15 @@ export const typography = {
 export const shadow = {
   card: {
     shadowColor: "#111111",
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.08,
-    shadowRadius: 34,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.06,
+    shadowRadius: 28,
+    elevation: 3,
   },
   heavy: {
     shadowColor: "#111111",
     shadowOffset: { width: 0, height: 24 },
-    shadowOpacity: 0.16,
+    shadowOpacity: 0.14,
     shadowRadius: 48,
     elevation: 8,
   },

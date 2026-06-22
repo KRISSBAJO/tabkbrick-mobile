@@ -1,7 +1,6 @@
 import { Bell, Search } from "lucide-react-native";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { BrandMark } from "@/components/ui/BrandMark";
-import { colors, radii } from "@/lib/theme/tokens";
+import { colors, radii, shadow } from "@/lib/theme/tokens";
 import type { AuthUser } from "@/lib/types";
 
 type WorkspaceHeaderProps = {
@@ -14,7 +13,6 @@ export function WorkspaceHeader({ user }: WorkspaceHeaderProps) {
 
   return (
     <View style={styles.wrap}>
-      <BrandMark compact />
       <View style={styles.identity}>
         <Text numberOfLines={1} style={styles.name}>{displayName}</Text>
         <Text numberOfLines={1} style={styles.role}>{user.roles[0] ?? "Workspace"}</Text>
@@ -35,26 +33,26 @@ export function WorkspaceHeader({ user }: WorkspaceHeaderProps) {
 const styles = StyleSheet.create({
   avatar: {
     alignItems: "center",
-    backgroundColor: colors.black,
-    borderRadius: radii.md,
-    height: 38,
+    backgroundColor: colors.primary,
+    borderRadius: radii.lg,
+    height: 42,
     justifyContent: "center",
-    width: 38,
+    width: 42,
   },
   avatarText: {
-    color: colors.white,
-    fontSize: 11,
+    color: colors.black,
+    fontSize: 12,
     fontWeight: "900",
   },
   iconButton: {
     alignItems: "center",
-    backgroundColor: colors.panel,
+    backgroundColor: colors.white,
     borderColor: colors.line,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     borderWidth: 1,
-    height: 38,
+    height: 42,
     justifyContent: "center",
-    width: 38,
+    width: 42,
   },
   identity: {
     flex: 1,
@@ -62,18 +60,24 @@ const styles = StyleSheet.create({
   },
   name: {
     color: colors.foreground,
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: "900",
   },
   role: {
     color: colors.inkSoft,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     marginTop: 1,
   },
   wrap: {
     alignItems: "center",
+    backgroundColor: colors.panel,
+    borderColor: colors.line,
+    borderRadius: radii["2xl"],
+    borderWidth: 1,
     flexDirection: "row",
     gap: 10,
+    padding: 10,
+    ...shadow.card,
   },
 });

@@ -689,8 +689,8 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   content: {
-    gap: 18,
-    padding: 18,
+    gap: 20,
+    padding: 20,
     paddingBottom: 112,
   },
   deleteAction: {
@@ -702,20 +702,20 @@ const styles = StyleSheet.create({
     width: 34,
   },
   description: {
-    color: "rgba(255,255,255,0.68)",
+    color: colors.inkSoft,
     fontSize: 13,
     fontWeight: "700",
     lineHeight: 19,
   },
   emptyRow: {
     backgroundColor: colors.muted,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     padding: 13,
   },
   errorBox: {
     backgroundColor: colors.redSoft,
     borderColor: "#fecaca",
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     borderWidth: 1,
     padding: 13,
   },
@@ -727,7 +727,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   eyebrow: {
-    color: colors.primary,
+    color: colors.primaryDark,
     fontSize: 12,
     fontWeight: "900",
   },
@@ -735,8 +735,10 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   hero: {
-    backgroundColor: colors.black,
+    backgroundColor: colors.panel,
+    borderColor: colors.line,
     borderRadius: radii["2xl"],
+    borderWidth: 1,
     gap: 14,
     padding: 18,
   },
@@ -745,7 +747,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   heroMetaText: {
-    color: "rgba(255,255,255,0.72)",
+    color: colors.inkSoft,
     fontSize: 12,
     fontWeight: "800",
   },
@@ -772,7 +774,7 @@ const styles = StyleSheet.create({
   info: {
     backgroundColor: colors.muted,
     borderColor: colors.line,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     borderWidth: 1,
     flexBasis: "48%",
     flexGrow: 1,
@@ -794,7 +796,7 @@ const styles = StyleSheet.create({
   metric: {
     backgroundColor: colors.panel,
     borderColor: colors.line,
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     borderWidth: 1,
     flex: 1,
     gap: 2,
@@ -842,7 +844,7 @@ const styles = StyleSheet.create({
     height: 7,
   },
   progressTrack: {
-    backgroundColor: "rgba(255,255,255,0.14)",
+    backgroundColor: colors.panelMuted,
     borderRadius: 99,
     height: 7,
     overflow: "hidden",
@@ -865,7 +867,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: colors.white,
     borderColor: colors.line,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     borderWidth: 1,
     flexDirection: "row",
     gap: 10,
@@ -890,7 +892,9 @@ const styles = StyleSheet.create({
   sectionAction: {
     alignItems: "center",
     backgroundColor: colors.primary,
-    borderRadius: radii.md,
+    borderColor: colors.primaryDark,
+    borderRadius: radii.lg,
+    borderWidth: 1,
     flexDirection: "row",
     gap: 5,
     paddingHorizontal: 11,
@@ -913,7 +917,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   title: {
-    color: colors.white,
+    color: colors.foreground,
     fontSize: 27,
     fontWeight: "900",
     letterSpacing: 0,

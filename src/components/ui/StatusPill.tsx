@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
-import { colors, radii } from "@/lib/theme/tokens";
+import { colors } from "@/lib/theme/tokens";
 
 type Tone = "blue" | "green" | "red" | "yellow" | "neutral";
 
@@ -28,7 +28,7 @@ export function StatusPill({ label, tone = "neutral" }: StatusPillProps) {
 const styles = StyleSheet.create({
   pill: {
     alignSelf: "flex-start",
-    borderRadius: radii.sm,
+    borderRadius: 999,
     paddingHorizontal: 9,
     paddingVertical: 5,
   },

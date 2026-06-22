@@ -171,8 +171,8 @@ const styles = StyleSheet.create({
     width: 36,
   },
   content: {
-    gap: 18,
-    padding: 18,
+    gap: 20,
+    padding: 20,
     paddingBottom: 112,
   },
   errorBox: {
@@ -190,15 +190,17 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   eyebrow: {
-    color: colors.primary,
+    color: colors.primaryDark,
     fontSize: 11,
     fontWeight: "900",
     letterSpacing: 0,
     textTransform: "uppercase",
   },
   hero: {
-    backgroundColor: colors.black,
+    backgroundColor: colors.panel,
+    borderColor: colors.line,
     borderRadius: radii["2xl"],
+    borderWidth: 1,
     gap: 12,
     padding: 20,
   },
@@ -228,7 +230,7 @@ const styles = StyleSheet.create({
   },
   projectRow: {
     alignItems: "center",
-    backgroundColor: colors.muted,
+    backgroundColor: colors.white,
     borderColor: colors.line,
     borderRadius: radii.md,
     borderWidth: 1,
@@ -259,7 +261,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   subtitle: {
-    color: "rgba(255,255,255,0.65)",
+    color: colors.inkSoft,
     fontSize: 14,
     fontWeight: "700",
     lineHeight: 20,
@@ -267,7 +269,7 @@ const styles = StyleSheet.create({
   },
   taskRow: {
     alignItems: "center",
-    backgroundColor: colors.muted,
+    backgroundColor: colors.white,
     borderColor: colors.line,
     borderRadius: radii.md,
     borderWidth: 1,
@@ -276,7 +278,7 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   title: {
-    color: colors.white,
+    color: colors.foreground,
     fontSize: 28,
     fontWeight: "900",
     letterSpacing: 0,

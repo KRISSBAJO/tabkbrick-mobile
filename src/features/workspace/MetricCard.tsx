@@ -26,14 +26,17 @@ export function MetricCard({ icon: Icon, label, tone = "light", value }: MetricC
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: radii.lg,
+    borderColor: colors.line,
+    borderRadius: radii.xl,
+    borderWidth: 1,
     flex: 1,
-    minHeight: 132,
+    minHeight: 128,
     minWidth: 0,
-    padding: 14,
+    padding: 15,
   },
   dark: {
     backgroundColor: colors.black,
+    borderColor: colors.black,
   },
   darkIcon: {
     backgroundColor: "rgba(255,255,255,0.08)",
@@ -43,7 +46,7 @@ const styles = StyleSheet.create({
   },
   icon: {
     alignItems: "center",
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     height: 38,
     justifyContent: "center",
     marginBottom: 14,
@@ -57,8 +60,6 @@ const styles = StyleSheet.create({
   },
   light: {
     backgroundColor: colors.white,
-    borderColor: colors.line,
-    borderWidth: 1,
   },
   lightIcon: {
     backgroundColor: colors.panelMuted,
@@ -79,5 +80,6 @@ const styles = StyleSheet.create({
   },
   yellow: {
     backgroundColor: colors.primary,
+    borderColor: colors.primaryDark,
   },
 });

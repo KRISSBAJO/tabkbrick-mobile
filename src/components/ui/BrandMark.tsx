@@ -31,7 +31,7 @@ const styles = StyleSheet.create({
   mark: {
     alignItems: "center",
     backgroundColor: colors.primary,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     height: 42,
     justifyContent: "center",
     width: 42,

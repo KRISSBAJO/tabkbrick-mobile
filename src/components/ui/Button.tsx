@@ -30,11 +30,11 @@ export function Button({ disabled, label, leftIcon, loading = false, rightIcon, 
       {...props}
     >
       {loading ? (
-        <ActivityIndicator color={variant === "primary" ? colors.black : colors.white} size="small" />
+        <ActivityIndicator color={variant === "dark" ? colors.white : colors.black} size="small" />
       ) : (
         <>
           {leftIcon}
-          <Text style={[styles.label, variant === "primary" || variant === "outline" || variant === "ghost" ? styles.darkLabel : styles.lightLabel]}>
+          <Text style={[styles.label, variant === "dark" ? styles.lightLabel : styles.darkLabel]}>
             {label}
           </Text>
           {rightIcon}
@@ -47,13 +47,13 @@ export function Button({ disabled, label, leftIcon, loading = false, rightIcon, 
 const styles = StyleSheet.create({
   base: {
     alignItems: "center",
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     borderWidth: 1,
     flexDirection: "row",
     gap: 8,
-    height: 48,
+    height: 52,
     justifyContent: "center",
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
   },
   dark: {
     backgroundColor: colors.black,
@@ -86,6 +86,6 @@ const styles = StyleSheet.create({
   },
   primary: {
     backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    borderColor: colors.primaryDark,
   },
 });

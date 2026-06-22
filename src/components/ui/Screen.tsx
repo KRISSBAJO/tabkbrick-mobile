@@ -27,9 +27,9 @@ export function Screen({ children, scroll = true }: ScreenProps) {
 
 const styles = StyleSheet.create({
   content: {
-    gap: 18,
-    padding: 18,
-    paddingBottom: 34,
+    gap: 20,
+    padding: 20,
+    paddingBottom: 116,
   },
   safe: {
     backgroundColor: colors.background,
