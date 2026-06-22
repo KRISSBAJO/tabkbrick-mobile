@@ -1,6 +1,6 @@
 import { Redirect, Tabs } from "expo-router";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
-import { CalendarDays, FolderOpen, LayoutDashboard, ListChecks, UserRound } from "lucide-react-native";
+import { BriefcaseBusiness, CalendarDays, LayoutDashboard, ListChecks, UserRound } from "lucide-react-native";
 import { useAuthSession } from "@/lib/auth/AuthSessionProvider";
 import { colors } from "@/lib/theme/tokens";
 
@@ -33,7 +33,8 @@ export default function WorkspaceTabsLayout() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: "Projects", tabBarIcon: ({ color }) => <LayoutDashboard color={color} size={20} /> }} />
-      <Tabs.Screen name="projects" options={{ title: "Portfolio", tabBarIcon: ({ color }) => <FolderOpen color={color} size={20} /> }} />
+      <Tabs.Screen name="portfolio" options={{ title: "Portfolio", tabBarIcon: ({ color }) => <BriefcaseBusiness color={color} size={20} /> }} />
+      <Tabs.Screen name="projects" options={{ href: null }} />
       <Tabs.Screen name="tasks" options={{ title: "Work", tabBarIcon: ({ color }) => <ListChecks color={color} size={20} /> }} />
       <Tabs.Screen name="meetings" options={{ title: "Planner", tabBarIcon: ({ color }) => <CalendarDays color={color} size={20} /> }} />
       <Tabs.Screen name="profile" options={{ title: "Account", tabBarIcon: ({ color }) => <UserRound color={color} size={20} /> }} />
