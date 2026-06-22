@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/Button";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { ProjectForm, type ProjectDraft } from "@/features/projects/ProjectForm";
 import { ProjectRecordModal, type ProjectRecordKind, type ProjectRecordValues } from "@/features/projects/ProjectRecordModal";
-import { ProjectSelector } from "@/features/projects/ProjectSelector";
 import {
   countOpenRisks,
   countOpenTasks,
@@ -48,9 +47,13 @@ import {
   listTeams,
   listWorkspaces,
   updateProject,
+  updateProjectBudget,
+  updateProjectChangeRequest,
+  updateProjectDecision,
   updateProjectDependency,
   updateProjectMilestone,
   updateProjectRisk,
+  updateProjectStakeholder,
 } from "@/lib/api";
 import { useAuthSession } from "@/lib/auth/AuthSessionProvider";
 import { colors, radii } from "@/lib/theme/tokens";
@@ -71,6 +74,9 @@ import type {
 } from "@/lib/types";
 
 type Section = "overview" | "plan" | "risk" | "people" | "finance" | "changes";
+type RecordModalState =
+  | { kind: ProjectRecordKind; mode: "create" }
+  | { id: string; kind: ProjectRecordKind; mode: "edit"; values: ProjectRecordValues };
 
 const sections: { label: string; value: Section }[] = [
   { label: "Overview", value: "overview" },
@@ -101,7 +107,7 @@ export default function ProjectDetailScreen() {
   const [section, setSection] = useState<Section>("overview");
   const [draft, setDraft] = useState<ProjectDraft | null>(null);
   const [editing, setEditing] = useState(false);
-  const [modalKind, setModalKind] = useState<ProjectRecordKind | null>(null);
+  const [recordModal, setRecordModal] = useState<RecordModalState | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -256,6 +262,7 @@ export default function ProjectDetailScreen() {
       await createProjectChangeRequest(accessToken, id, {
         budgetImpact: optionalNumber(values.budgetImpact),
         description: optional(values.description),
+        dueDate: optional(values.dueDate),
         reason: optional(values.reason),
         scheduleImpactDays: optionalInteger(values.scheduleImpactDays),
         status: optional(values.status) as "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED" | "IMPLEMENTED" | "CANCELLED" | undefined,
@@ -263,6 +270,86 @@ export default function ProjectDetailScreen() {
       });
     }
     await load(true);
+  }
+
+  async function saveRecord(kind: ProjectRecordKind, values: ProjectRecordValues) {
+    if (!recordModal || recordModal.mode === "create") {
+      await createRecord(kind, values);
+      return;
+    }
+    await updateRecord(kind, recordModal.id, values);
+  }
+
+  async function updateRecord(kind: ProjectRecordKind, recordId: string, values: ProjectRecordValues) {
+    if (!accessToken || !project) return;
+    const id = project.id;
+    if (kind === "milestone") {
+      await updateProjectMilestone(accessToken, id, recordId, {
+        description: optional(values.description),
+        dueDate: optional(values.dueDate),
+        title: optional(values.title),
+      });
+    } else if (kind === "risk") {
+      await updateProjectRisk(accessToken, id, recordId, {
+        description: optional(values.description),
+        mitigation: optional(values.mitigation),
+        severity: optional(values.severity) as "LOW" | "MEDIUM" | "HIGH" | "URGENT" | "CRITICAL" | undefined,
+        title: optional(values.title),
+      });
+    } else if (kind === "budget") {
+      await updateProjectBudget(accessToken, id, recordId, {
+        actual: optionalNumber(values.actual),
+        currency: optional(values.currency),
+        notes: optional(values.notes),
+        planned: optionalNumber(values.planned),
+      });
+    } else if (kind === "stakeholder") {
+      await updateProjectStakeholder(accessToken, id, recordId, {
+        email: optional(values.email),
+        influence: optional(values.influence) as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | undefined,
+        isExternal: true,
+        name: optional(values.name),
+        notes: optional(values.notes),
+        organization: optional(values.organization),
+        role: optional(values.role),
+      });
+    } else if (kind === "dependency") {
+      await updateProjectDependency(accessToken, id, recordId, {
+        dependencyType: optional(values.dependencyType),
+        description: optional(values.description),
+        dueDate: optional(values.dueDate),
+        ownerName: optional(values.ownerName),
+        status: optional(values.status) as "OPEN" | "BLOCKED" | "RESOLVED" | "CANCELLED" | undefined,
+        title: optional(values.title),
+      });
+    } else if (kind === "decision") {
+      await updateProjectDecision(accessToken, id, recordId, {
+        description: optional(values.description),
+        outcome: optional(values.outcome),
+        ownerName: optional(values.ownerName),
+        status: optional(values.status) as "PROPOSED" | "DECIDED" | "SUPERSEDED" | "REOPENED" | undefined,
+        title: optional(values.title),
+      });
+    } else {
+      await updateProjectChangeRequest(accessToken, id, recordId, {
+        budgetImpact: optionalNumber(values.budgetImpact),
+        description: optional(values.description),
+        dueDate: optional(values.dueDate),
+        reason: optional(values.reason),
+        scheduleImpactDays: optionalInteger(values.scheduleImpactDays),
+        status: optional(values.status) as "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED" | "IMPLEMENTED" | "CANCELLED" | undefined,
+        title: optional(values.title),
+      });
+    }
+    await load(true);
+  }
+
+  function openCreate(kind: ProjectRecordKind) {
+    setRecordModal({ kind, mode: "create" });
+  }
+
+  function openEdit(kind: ProjectRecordKind, id: string, values: ProjectRecordValues) {
+    setRecordModal({ id, kind, mode: "edit", values });
   }
 
   function confirmDeleteProject() {
@@ -362,7 +449,7 @@ export default function ProjectDetailScreen() {
           </View>
         ) : null}
 
-        <ProjectSelector label="Manage" onChange={setSection} options={sections} value={section} />
+        <SectionTabs onChange={setSection} value={section} />
 
         {section === "overview" && draft ? (
           <View style={styles.section}>
@@ -395,7 +482,7 @@ export default function ProjectDetailScreen() {
 
         {section === "plan" ? (
           <View style={styles.section}>
-            <SectionHeader onAction={() => setModalKind("milestone")} title="Milestones" />
+            <SectionHeader onAction={canEdit ? () => openCreate("milestone") : undefined} title="Milestones" />
             <RecordList empty="No milestones yet.">
               {milestones.map((milestone) => (
                 <RecordRow
@@ -406,6 +493,7 @@ export default function ProjectDetailScreen() {
                     completedAt: milestone.completedAt ? null : new Date().toISOString(),
                   }).then(() => load(true))}
                   onDelete={() => confirmDelete("milestone", () => deleteProjectMilestone(accessToken ?? "", project.id, milestone.id))}
+                  onEdit={canEdit ? () => openEdit("milestone", milestone.id, valuesFromMilestone(milestone)) : undefined}
                   status={milestone.completedAt ? "COMPLETED" : isOverdue(milestone.dueDate) ? "OVERDUE" : "OPEN"}
                   title={milestone.title}
                 />
@@ -427,7 +515,7 @@ export default function ProjectDetailScreen() {
 
         {section === "risk" ? (
           <View style={styles.section}>
-            <SectionHeader onAction={() => setModalKind("risk")} title="Risks" />
+            <SectionHeader onAction={canEdit ? () => openCreate("risk") : undefined} title="Risks" />
             <RecordList empty="No risks recorded.">
               {risks.map((risk) => (
                 <RecordRow
@@ -436,12 +524,13 @@ export default function ProjectDetailScreen() {
                   meta={risk.description || risk.mitigation || "No details"}
                   onAction={() => void updateProjectRisk(accessToken ?? "", project.id, risk.id, { isOpen: !risk.isOpen }).then(() => load(true))}
                   onDelete={() => confirmDelete("risk", () => deleteProjectRisk(accessToken ?? "", project.id, risk.id))}
+                  onEdit={canEdit ? () => openEdit("risk", risk.id, valuesFromRisk(risk)) : undefined}
                   status={risk.isOpen ? risk.severity || "OPEN" : "CLOSED"}
                   title={risk.title}
                 />
               ))}
             </RecordList>
-            <SectionHeader onAction={() => setModalKind("dependency")} title="Dependencies" />
+            <SectionHeader onAction={canEdit ? () => openCreate("dependency") : undefined} title="Dependencies" />
             <RecordList empty="No dependencies recorded.">
               {dependencies.map((dependency) => (
                 <RecordRow
@@ -452,6 +541,7 @@ export default function ProjectDetailScreen() {
                     status: dependency.status === "RESOLVED" ? "OPEN" : "RESOLVED",
                   }).then(() => load(true))}
                   onDelete={() => confirmDelete("dependency", () => deleteProjectDependency(accessToken ?? "", project.id, dependency.id))}
+                  onEdit={canEdit ? () => openEdit("dependency", dependency.id, valuesFromDependency(dependency)) : undefined}
                   status={dependency.status}
                   title={dependency.title}
                 />
@@ -473,13 +563,14 @@ export default function ProjectDetailScreen() {
                 />
               ))}
             </RecordList>
-            <SectionHeader onAction={() => setModalKind("stakeholder")} title="Stakeholders" />
+            <SectionHeader onAction={canEdit ? () => openCreate("stakeholder") : undefined} title="Stakeholders" />
             <RecordList empty="No stakeholders recorded.">
               {stakeholders.map((stakeholder) => (
                 <RecordRow
                   key={stakeholder.id}
                   meta={[stakeholder.role, stakeholder.organization, stakeholder.email].filter(Boolean).join(" - ") || "Stakeholder"}
                   onDelete={() => confirmDelete("stakeholder", () => deleteProjectStakeholder(accessToken ?? "", project.id, stakeholder.id))}
+                  onEdit={canEdit ? () => openEdit("stakeholder", stakeholder.id, valuesFromStakeholder(stakeholder)) : undefined}
                   status={stakeholder.influence}
                   title={stakeholder.name}
                 />
@@ -490,13 +581,14 @@ export default function ProjectDetailScreen() {
 
         {section === "finance" ? (
           <View style={styles.section}>
-            <SectionHeader onAction={() => setModalKind("budget")} title="Budgets" />
+            <SectionHeader onAction={canEdit ? () => openCreate("budget") : undefined} title="Budgets" />
             <RecordList empty="No budgets recorded or you do not have budget access.">
               {budgets.map((budget) => (
                 <RecordRow
                   key={budget.id}
                   meta={`Planned ${formatCurrency(budget.planned, budget.currency ?? project.currency ?? "USD")} - Actual ${formatCurrency(budget.actual, budget.currency ?? project.currency ?? "USD")}`}
                   onDelete={() => confirmDelete("budget", () => deleteProjectBudget(accessToken ?? "", project.id, budget.id))}
+                  onEdit={canEdit ? () => openEdit("budget", budget.id, valuesFromBudget(budget)) : undefined}
                   status={budget.currency || project.currency || "Budget"}
                   title={budget.notes || "Project budget"}
                 />
@@ -507,25 +599,27 @@ export default function ProjectDetailScreen() {
 
         {section === "changes" ? (
           <View style={styles.section}>
-            <SectionHeader onAction={() => setModalKind("decision")} title="Decisions" />
+            <SectionHeader onAction={canEdit ? () => openCreate("decision") : undefined} title="Decisions" />
             <RecordList empty="No decisions recorded.">
               {decisions.map((decision) => (
                 <RecordRow
                   key={decision.id}
                   meta={decision.outcome || decision.description || "No outcome yet"}
                   onDelete={() => confirmDelete("decision", () => deleteProjectDecision(accessToken ?? "", project.id, decision.id))}
+                  onEdit={canEdit ? () => openEdit("decision", decision.id, valuesFromDecision(decision)) : undefined}
                   status={decision.status}
                   title={decision.title}
                 />
               ))}
             </RecordList>
-            <SectionHeader onAction={() => setModalKind("changeRequest")} title="Change requests" />
+            <SectionHeader onAction={canEdit ? () => openCreate("changeRequest") : undefined} title="Change requests" />
             <RecordList empty="No change requests recorded.">
               {changeRequests.map((request) => (
                 <RecordRow
                   key={request.id}
                   meta={request.reason || request.description || "No reason supplied"}
                   onDelete={() => confirmDelete("change request", () => deleteProjectChangeRequest(accessToken ?? "", project.id, request.id))}
+                  onEdit={canEdit ? () => openEdit("changeRequest", request.id, valuesFromChangeRequest(request)) : undefined}
                   status={request.status}
                   title={request.title}
                 />
@@ -536,10 +630,12 @@ export default function ProjectDetailScreen() {
       </ScrollView>
 
       <ProjectRecordModal
-        kind={modalKind}
-        onClose={() => setModalKind(null)}
-        onSubmit={createRecord}
-        visible={Boolean(modalKind)}
+        initialValues={recordModal?.mode === "edit" ? recordModal.values : undefined}
+        kind={recordModal?.kind ?? null}
+        mode={recordModal?.mode}
+        onClose={() => setRecordModal(null)}
+        onSubmit={saveRecord}
+        visible={Boolean(recordModal)}
       />
     </>
   );
@@ -576,11 +672,109 @@ function required(value: string | undefined, message = "Title is required.") {
   return trimmed;
 }
 
+function valuesFromMilestone(milestone: ProjectMilestone): ProjectRecordValues {
+  return {
+    description: textValue(milestone.description),
+    dueDate: textValue(milestone.dueDate),
+    title: textValue(milestone.title),
+  };
+}
+
+function valuesFromRisk(risk: ProjectRisk): ProjectRecordValues {
+  return {
+    description: textValue(risk.description),
+    mitigation: textValue(risk.mitigation),
+    severity: textValue(risk.severity || "MEDIUM"),
+    title: textValue(risk.title),
+  };
+}
+
+function valuesFromBudget(budget: ProjectBudget): ProjectRecordValues {
+  return {
+    actual: textValue(budget.actual),
+    currency: textValue(budget.currency || "USD"),
+    notes: textValue(budget.notes),
+    planned: textValue(budget.planned),
+  };
+}
+
+function valuesFromStakeholder(stakeholder: ProjectStakeholder): ProjectRecordValues {
+  return {
+    email: textValue(stakeholder.email),
+    influence: textValue(stakeholder.influence || "MEDIUM"),
+    name: textValue(stakeholder.name),
+    notes: textValue(stakeholder.notes),
+    organization: textValue(stakeholder.organization),
+    role: textValue(stakeholder.role),
+  };
+}
+
+function valuesFromDependency(dependency: ProjectDependency): ProjectRecordValues {
+  return {
+    dependencyType: textValue(dependency.dependencyType),
+    description: textValue(dependency.description),
+    dueDate: textValue(dependency.dueDate),
+    ownerName: textValue(dependency.ownerName),
+    status: textValue(dependency.status || "OPEN"),
+    title: textValue(dependency.title),
+  };
+}
+
+function valuesFromDecision(decision: ProjectDecision): ProjectRecordValues {
+  return {
+    description: textValue(decision.description),
+    outcome: textValue(decision.outcome),
+    ownerName: textValue(decision.ownerName),
+    status: textValue(decision.status || "PROPOSED"),
+    title: textValue(decision.title),
+  };
+}
+
+function valuesFromChangeRequest(request: ProjectChangeRequest): ProjectRecordValues {
+  return {
+    budgetImpact: textValue(request.budgetImpact),
+    description: textValue(request.description),
+    dueDate: textValue(request.dueDate),
+    reason: textValue(request.reason),
+    scheduleImpactDays: textValue(request.scheduleImpactDays),
+    status: textValue(request.status || "DRAFT"),
+    title: textValue(request.title),
+  };
+}
+
+function textValue(value: unknown) {
+  if (value === null || value === undefined) return "";
+  return String(value);
+}
+
 function Metric({ label, tone = "neutral", value }: { label: string; tone?: "green" | "neutral" | "red"; value: number }) {
   return (
     <View style={[styles.metric, tone === "red" ? styles.metricRed : tone === "green" ? styles.metricGreen : null]}>
       <Text style={styles.metricValue}>{value}</Text>
       <Text style={styles.metricLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function SectionTabs({ onChange, value }: { onChange: (value: Section) => void; value: Section }) {
+  return (
+    <View style={styles.tabsWrap}>
+      <Text style={styles.tabsLabel}>Management</Text>
+      <ScrollView contentContainerStyle={styles.tabsContent} horizontal showsHorizontalScrollIndicator={false}>
+        {sections.map((sectionItem) => {
+          const selected = sectionItem.value === value;
+          return (
+            <Pressable
+              accessibilityRole="button"
+              key={sectionItem.value}
+              onPress={() => onChange(sectionItem.value)}
+              style={[styles.tabButton, selected ? styles.tabButtonActive : null]}
+            >
+              <Text style={[styles.tabButtonText, selected ? styles.tabButtonTextActive : null]}>{sectionItem.label}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
     </View>
   );
 }
@@ -617,6 +811,7 @@ function RecordRow({
   meta,
   onAction,
   onDelete,
+  onEdit,
   status,
   title,
 }: {
@@ -624,6 +819,7 @@ function RecordRow({
   meta?: string | null;
   onAction?: () => void;
   onDelete?: () => void;
+  onEdit?: () => void;
   status?: string | null;
   title: string;
 }) {
@@ -635,6 +831,12 @@ function RecordRow({
       </View>
       <View style={styles.recordActions}>
         {status ? <StatusPill label={humanize(status)} tone={statusTone(status)} /> : null}
+        {onEdit ? (
+          <Pressable accessibilityRole="button" onPress={onEdit} style={styles.iconAction}>
+            <Pencil color={colors.accent} size={15} />
+            <Text style={[styles.iconActionText, styles.editActionText]}>Edit</Text>
+          </Pressable>
+        ) : null}
         {onAction ? (
           <Pressable accessibilityRole="button" onPress={onAction} style={styles.iconAction}>
             <CheckCircle2 color={colors.success} size={17} />
@@ -711,6 +913,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.muted,
     borderRadius: radii.lg,
     padding: 13,
+  },
+  editActionText: {
+    color: colors.accent,
   },
   errorBox: {
     backgroundColor: colors.redSoft,
@@ -915,6 +1120,40 @@ const styles = StyleSheet.create({
     color: colors.foreground,
     fontSize: 18,
     fontWeight: "900",
+  },
+  tabButton: {
+    backgroundColor: colors.panel,
+    borderColor: colors.line,
+    borderRadius: 999,
+    borderWidth: 1,
+    minHeight: 42,
+    justifyContent: "center",
+    paddingHorizontal: 15,
+  },
+  tabButtonActive: {
+    backgroundColor: colors.foreground,
+    borderColor: colors.foreground,
+  },
+  tabButtonText: {
+    color: colors.inkSoft,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  tabButtonTextActive: {
+    color: colors.white,
+  },
+  tabsContent: {
+    gap: 8,
+    paddingRight: 20,
+  },
+  tabsLabel: {
+    color: colors.inkSoft,
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  tabsWrap: {
+    gap: 10,
   },
   title: {
     color: colors.foreground,
