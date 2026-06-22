@@ -5,7 +5,8 @@ import { router, useLocalSearchParams } from "expo-router";
 import { ArrowLeft, CheckCircle2, Pencil, Plus, Trash2 } from "lucide-react-native";
 import { Button } from "@/components/ui/Button";
 import { StatusPill } from "@/components/ui/StatusPill";
-import { ProjectForm, type ProjectDraft } from "@/features/projects/ProjectForm";
+import { ProjectEditModal } from "@/features/projects/ProjectEditModal";
+import type { ProjectDraft } from "@/features/projects/ProjectForm";
 import { ProjectRecordModal, type ProjectRecordKind, type ProjectRecordValues } from "@/features/projects/ProjectRecordModal";
 import {
   countOpenRisks,
@@ -106,7 +107,8 @@ export default function ProjectDetailScreen() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [section, setSection] = useState<Section>("overview");
   const [draft, setDraft] = useState<ProjectDraft | null>(null);
-  const [editing, setEditing] = useState(false);
+  const [editingProject, setEditingProject] = useState(false);
+  const [editError, setEditError] = useState("");
   const [recordModal, setRecordModal] = useState<RecordModalState | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -178,27 +180,40 @@ export default function ProjectDetailScreen() {
     void load();
   }, [load]);
 
-  const metrics = useMemo(() => ({
-    openRisks: countOpenRisks(risks),
-    openTasks: countOpenTasks(tasks),
-    overdueMilestones: milestones.filter((milestone) => !milestone.completedAt && isOverdue(milestone.dueDate)).length,
-    stakeholderCount: stakeholders.length + members.length,
-  }), [members.length, milestones, risks, stakeholders.length, tasks]);
+  const summaryItems = useMemo(() => [
+    { label: "Tasks", value: countOpenTasks(tasks) },
+    { label: "Risks", value: countOpenRisks(risks) },
+    { label: "Late", value: milestones.filter((milestone) => !milestone.completedAt && isOverdue(milestone.dueDate)).length },
+    { label: "People", value: stakeholders.length + members.length },
+  ], [members.length, milestones, risks, stakeholders.length, tasks]);
 
   async function saveOverview() {
     if (!accessToken || !project || !draft) return;
     setSaving(true);
-    setError("");
+    setEditError("");
     try {
       const updated = await updateProject(accessToken, project.id, toUpdateProjectPayload(draft));
       setProject(updated);
       setDraft(createDraftFromProject(updated));
-      setEditing(false);
+      setEditingProject(false);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to update project.");
+      setEditError(caught instanceof Error ? caught.message : "Unable to update project.");
     } finally {
       setSaving(false);
     }
+  }
+
+  function openProjectEdit() {
+    if (!project) return;
+    setDraft(createDraftFromProject(project));
+    setEditError("");
+    setEditingProject(true);
+  }
+
+  function closeProjectEdit() {
+    if (project) setDraft(createDraftFromProject(project));
+    setEditError("");
+    setEditingProject(false);
   }
 
   async function createRecord(kind: ProjectRecordKind, values: ProjectRecordValues) {
@@ -410,37 +425,35 @@ export default function ProjectDetailScreen() {
         style={styles.safe}
       >
         <View style={styles.header}>
-          <Button
-            label="Projects"
-            leftIcon={<ArrowLeft color={colors.black} size={16} />}
-            onPress={() => router.replace("/(workspace)/projects")}
-            style={styles.backButton}
-            variant="outline"
-          />
-          <View style={styles.hero}>
-            <View style={styles.heroTop}>
-              <View style={styles.heroText}>
-                <Text style={styles.eyebrow}>{project.key}</Text>
-                <Text style={styles.title}>{project.name}</Text>
-              </View>
-              <StatusPill label={humanize(project.status)} tone={statusTone(project.status)} />
-            </View>
-            {project.description ? <Text style={styles.description}>{project.description}</Text> : null}
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${Math.min(Math.max(project.progress, 0), 100)}%` }]} />
-            </View>
-            <View style={styles.heroMeta}>
-              <Text style={styles.heroMetaText}>{project.progress}% complete</Text>
-              <Text style={styles.heroMetaText}>Due {formatDate(project.dueDate)}</Text>
-            </View>
-          </View>
+          <Pressable accessibilityRole="button" onPress={() => router.replace("/(workspace)/projects")} style={styles.backLink}>
+            <ArrowLeft color={colors.foreground} size={18} strokeWidth={2.7} />
+            <Text style={styles.backLinkText}>Projects</Text>
+          </Pressable>
+          {canEdit ? (
+            <Pressable accessibilityRole="button" onPress={openProjectEdit} style={styles.headerAction}>
+              <Pencil color={colors.foreground} size={16} strokeWidth={2.6} />
+              <Text style={styles.headerActionText}>Edit</Text>
+            </Pressable>
+          ) : null}
         </View>
 
-        <View style={styles.metricGrid}>
-          <Metric label="Open tasks" value={metrics.openTasks} />
-          <Metric label="Open risks" tone={metrics.openRisks ? "red" : "green"} value={metrics.openRisks} />
-          <Metric label="Late milestones" tone={metrics.overdueMilestones ? "red" : "neutral"} value={metrics.overdueMilestones} />
-          <Metric label="People" value={metrics.stakeholderCount} />
+        <View style={styles.projectIntro}>
+          <View style={styles.projectTitleRow}>
+            <View style={styles.projectTitleWrap}>
+              <Text style={styles.eyebrow}>{project.key}</Text>
+              <Text style={styles.title}>{project.name}</Text>
+            </View>
+            <StatusPill label={humanize(project.status)} tone={statusTone(project.status)} />
+          </View>
+          {project.description ? <Text style={styles.description}>{project.description}</Text> : null}
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${Math.min(Math.max(project.progress, 0), 100)}%` }]} />
+          </View>
+          <View style={styles.projectMetaLine}>
+            <Text style={styles.projectMetaText}>{project.progress}% complete</Text>
+            <Text style={styles.projectMetaText}>Due {formatDate(project.dueDate)}</Text>
+          </View>
+          <ProjectSummary items={summaryItems} />
         </View>
 
         {error ? (
@@ -454,21 +467,11 @@ export default function ProjectDetailScreen() {
         {section === "overview" && draft ? (
           <View style={styles.section}>
             <SectionHeader
-              action={canEdit ? (editing ? "Cancel" : "Edit") : undefined}
-              onAction={canEdit ? () => {
-                if (editing) setDraft(createDraftFromProject(project));
-                setEditing((value) => !value);
-              } : undefined}
+              action={canEdit ? "Edit" : undefined}
+              onAction={canEdit ? openProjectEdit : undefined}
               title="Overview"
             />
-            {editing ? (
-              <>
-                <ProjectForm draft={draft} mode="edit" onChange={setDraft} teams={teams} workspaces={workspaces} />
-                <Button label="Save overview" loading={saving} onPress={saveOverview} />
-              </>
-            ) : (
-              <Overview project={project} />
-            )}
+            <Overview project={project} />
             {canDelete ? (
               <Button
                 label="Delete project"
@@ -637,6 +640,19 @@ export default function ProjectDetailScreen() {
         onSubmit={saveRecord}
         visible={Boolean(recordModal)}
       />
+      {draft ? (
+        <ProjectEditModal
+          draft={draft}
+          error={editError}
+          onChange={setDraft}
+          onClose={closeProjectEdit}
+          onSubmit={saveOverview}
+          saving={saving}
+          teams={teams}
+          visible={editingProject}
+          workspaces={workspaces}
+        />
+      ) : null}
     </>
   );
 }
@@ -747,11 +763,16 @@ function textValue(value: unknown) {
   return String(value);
 }
 
-function Metric({ label, tone = "neutral", value }: { label: string; tone?: "green" | "neutral" | "red"; value: number }) {
+function ProjectSummary({ items }: { items: { label: string; value: number }[] }) {
   return (
-    <View style={[styles.metric, tone === "red" ? styles.metricRed : tone === "green" ? styles.metricGreen : null]}>
-      <Text style={styles.metricValue}>{value}</Text>
-      <Text style={styles.metricLabel}>{label}</Text>
+    <View style={styles.summaryLine}>
+      {items.map((item, index) => (
+        <View key={item.label} style={styles.summaryItem}>
+          {index > 0 ? <View style={styles.summaryDivider} /> : null}
+          <Text style={styles.summaryValue}>{item.value}</Text>
+          <Text style={styles.summaryLabel}>{item.label}</Text>
+        </View>
+      ))}
     </View>
   );
 }
@@ -854,23 +875,29 @@ function RecordRow({
 }
 
 function Overview({ project }: { project: Project }) {
+  const rows = [
+    { label: "Workspace", value: project.workspace?.name || "Current workspace" },
+    { label: "Team", value: project.team?.name || "No team" },
+    { label: "Client", value: project.clientName || "No client" },
+    { label: "Contract", value: formatCurrency(project.contractValue, project.currency ?? "USD") },
+    { label: "Start", value: formatDate(project.startDate) },
+    { label: "Due", value: formatDate(project.dueDate) },
+    { label: "Visibility", value: humanize(project.visibility) },
+    { label: "Location", value: [project.locationName, project.city, project.country].filter(Boolean).join(", ") || "No location" },
+  ];
+
   return (
-    <View style={styles.overviewGrid}>
-      <Info label="Workspace" value={project.workspace?.name || "Current workspace"} />
-      <Info label="Team" value={project.team?.name || "No team"} />
-      <Info label="Client" value={project.clientName || "No client"} />
-      <Info label="Contract" value={formatCurrency(project.contractValue, project.currency ?? "USD")} />
-      <Info label="Start" value={formatDate(project.startDate)} />
-      <Info label="Due" value={formatDate(project.dueDate)} />
-      <Info label="Visibility" value={humanize(project.visibility)} />
-      <Info label="Location" value={[project.locationName, project.city, project.country].filter(Boolean).join(", ") || "No location"} />
+    <View style={styles.overviewList}>
+      {rows.map((row, index) => (
+        <Info key={row.label} label={row.label} last={index === rows.length - 1} value={row.value} />
+      ))}
     </View>
   );
 }
 
-function Info({ label, value }: { label: string; value: string }) {
+function Info({ label, last, value }: { label: string; last: boolean; value: string }) {
   return (
-    <View style={styles.info}>
+    <View style={[styles.info, last ? styles.infoLast : null]}>
       <Text style={styles.infoLabel}>{label}</Text>
       <Text numberOfLines={2} style={styles.infoValue}>{value}</Text>
     </View>
@@ -878,9 +905,16 @@ function Info({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  backButton: {
-    alignSelf: "flex-start",
-    height: 40,
+  backLink: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 7,
+    paddingVertical: 4,
+  },
+  backLinkText: {
+    color: colors.foreground,
+    fontSize: 14,
+    fontWeight: "900",
   },
   center: {
     alignItems: "center",
@@ -891,7 +925,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   content: {
-    gap: 20,
+    gap: 24,
     padding: 20,
     paddingBottom: 112,
   },
@@ -905,14 +939,14 @@ const styles = StyleSheet.create({
   },
   description: {
     color: colors.inkSoft,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "700",
-    lineHeight: 19,
+    lineHeight: 21,
   },
   emptyRow: {
-    backgroundColor: colors.muted,
-    borderRadius: radii.lg,
-    padding: 13,
+    borderTopColor: colors.line,
+    borderTopWidth: 1,
+    paddingVertical: 18,
   },
   editActionText: {
     color: colors.accent,
@@ -932,38 +966,27 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   eyebrow: {
-    color: colors.primaryDark,
+    color: colors.accent,
     fontSize: 12,
     fontWeight: "900",
+    textTransform: "uppercase",
   },
   header: {
-    gap: 14,
-  },
-  hero: {
-    backgroundColor: colors.panel,
-    borderColor: colors.line,
-    borderRadius: radii["2xl"],
-    borderWidth: 1,
-    gap: 14,
-    padding: 18,
-  },
-  heroMeta: {
+    alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
   },
-  heroMetaText: {
-    color: colors.inkSoft,
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  heroText: {
-    flex: 1,
-    minWidth: 0,
-  },
-  heroTop: {
-    alignItems: "flex-start",
+  headerAction: {
+    alignItems: "center",
     flexDirection: "row",
-    gap: 10,
+    gap: 6,
+    paddingHorizontal: 2,
+    paddingVertical: 4,
+  },
+  headerActionText: {
+    color: colors.foreground,
+    fontSize: 14,
+    fontWeight: "900",
   },
   iconAction: {
     alignItems: "center",
@@ -977,14 +1000,16 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   info: {
-    backgroundColor: colors.muted,
-    borderColor: colors.line,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    flexBasis: "48%",
-    flexGrow: 1,
-    gap: 3,
-    padding: 12,
+    alignItems: "flex-start",
+    borderBottomColor: colors.line,
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    gap: 18,
+    justifyContent: "space-between",
+    paddingVertical: 14,
+  },
+  infoLast: {
+    borderBottomWidth: 0,
   },
   infoLabel: {
     color: colors.inkSoft,
@@ -994,43 +1019,11 @@ const styles = StyleSheet.create({
   },
   infoValue: {
     color: colors.foreground,
-    fontSize: 13,
-    fontWeight: "900",
-    lineHeight: 18,
-  },
-  metric: {
-    backgroundColor: colors.panel,
-    borderColor: colors.line,
-    borderRadius: radii.xl,
-    borderWidth: 1,
     flex: 1,
-    gap: 2,
-    minWidth: "47%",
-    padding: 13,
-  },
-  metricGreen: {
-    backgroundColor: colors.greenSoft,
-    borderColor: "#bbf7d0",
-  },
-  metricGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  metricLabel: {
-    color: colors.inkSoft,
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: "900",
-    textTransform: "uppercase",
-  },
-  metricRed: {
-    backgroundColor: colors.redSoft,
-    borderColor: "#fecaca",
-  },
-  metricValue: {
-    color: colors.foreground,
-    fontSize: 23,
-    fontWeight: "900",
+    lineHeight: 19,
+    textAlign: "right",
   },
   muted: {
     color: colors.inkSoft,
@@ -1038,28 +1031,50 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 19,
   },
-  overviewGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
+  overviewList: {
+    borderTopColor: colors.line,
+    borderTopWidth: 1,
   },
   progressFill: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accent,
     borderRadius: 99,
-    height: 7,
+    height: 5,
   },
   progressTrack: {
-    backgroundColor: colors.panelMuted,
+    backgroundColor: colors.line,
     borderRadius: 99,
-    height: 7,
+    height: 5,
     overflow: "hidden",
+  },
+  projectIntro: {
+    gap: 14,
+  },
+  projectMetaLine: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  projectMetaText: {
+    color: colors.inkSoft,
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  projectTitleRow: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: 12,
+  },
+  projectTitleWrap: {
+    flex: 1,
+    minWidth: 0,
   },
   recordActions: {
     alignItems: "flex-end",
     gap: 7,
   },
   recordList: {
-    gap: 10,
+    borderTopColor: colors.line,
+    borderTopWidth: 1,
   },
   recordMeta: {
     color: colors.inkSoft,
@@ -1069,14 +1084,12 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   recordRow: {
-    alignItems: "center",
-    backgroundColor: colors.white,
-    borderColor: colors.line,
-    borderRadius: radii.lg,
-    borderWidth: 1,
+    alignItems: "flex-start",
+    borderBottomColor: colors.line,
+    borderBottomWidth: 1,
     flexDirection: "row",
-    gap: 10,
-    padding: 12,
+    gap: 14,
+    paddingVertical: 15,
   },
   recordText: {
     flex: 1,
@@ -1096,17 +1109,17 @@ const styles = StyleSheet.create({
   },
   sectionAction: {
     alignItems: "center",
-    backgroundColor: colors.primary,
-    borderColor: colors.primaryDark,
-    borderRadius: radii.lg,
+    backgroundColor: colors.panel,
+    borderColor: colors.line,
+    borderRadius: 999,
     borderWidth: 1,
     flexDirection: "row",
     gap: 5,
-    paddingHorizontal: 11,
+    paddingHorizontal: 12,
     paddingVertical: 8,
   },
   sectionActionText: {
-    color: colors.black,
+    color: colors.foreground,
     fontSize: 12,
     fontWeight: "900",
   },
@@ -1118,7 +1131,36 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: colors.foreground,
-    fontSize: 18,
+    fontSize: 19,
+    fontWeight: "900",
+  },
+  summaryDivider: {
+    backgroundColor: colors.line,
+    height: 28,
+    marginRight: 14,
+    width: 1,
+  },
+  summaryItem: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 5,
+  },
+  summaryLabel: {
+    color: colors.inkSoft,
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  summaryLine: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 14,
+    paddingTop: 2,
+  },
+  summaryValue: {
+    color: colors.foreground,
+    fontSize: 17,
     fontWeight: "900",
   },
   tabButton: {
