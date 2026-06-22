@@ -153,6 +153,10 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const requestHeaders = new Headers(headers);
   const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
 
+  // Expo/RN fetch can convert cache: "no-store" into a _= query param.
+  // The backend rejects unknown query params on strict OpenAPI routes.
+  delete init.cache;
+
   requestHeaders.set("X-TaskBricks-Client", "mobile");
   if (!requestHeaders.has("X-Request-Id")) {
     requestHeaders.set("X-Request-Id", createRequestId());
