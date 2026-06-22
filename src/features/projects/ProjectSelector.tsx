@@ -51,8 +51,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   optionSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primaryDark,
+    backgroundColor: colors.blueSoft,
+    borderColor: "#bfdbfe",
   },
   optionText: {
     color: colors.inkSoft,
@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   optionTextSelected: {
-    color: colors.black,
+    color: colors.accent,
   },
   options: {
     flexDirection: "row",

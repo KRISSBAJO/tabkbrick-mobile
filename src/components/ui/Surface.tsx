@@ -25,7 +25,7 @@ export function Surface({ children, eyebrow, style, title }: SurfaceProps) {
 
 const styles = StyleSheet.create({
   eyebrow: {
-    color: colors.primaryDark,
+    color: colors.accent,
     fontSize: 11,
     fontWeight: "900",
     letterSpacing: 0,

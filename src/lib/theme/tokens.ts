@@ -1,9 +1,9 @@
 export const colors = {
-  background: "#f7f3ed",
+  background: "#f4f3f8",
   foreground: "#171511",
   panel: "#ffffff",
-  panelMuted: "#fbf7ef",
-  line: "#ece4d7",
+  panelMuted: "#f7f6fb",
+  line: "#e8e6ee",
   primary: "#ffd400",
   primaryDark: "#e7bc00",
   accent: "#2563eb",
@@ -14,11 +14,11 @@ export const colors = {
   black: "#10100f",
   white: "#ffffff",
   slate: "#35302a",
-  muted: "#fbf8f1",
+  muted: "#f8f7fb",
   blueSoft: "#eef4ff",
   greenSoft: "#ecfdf3",
   redSoft: "#fef2f2",
-  yellowSoft: "#fff1d9",
+  yellowSoft: "#fff8d7",
   orangeSoft: "#fff3e8",
 } as const;
 

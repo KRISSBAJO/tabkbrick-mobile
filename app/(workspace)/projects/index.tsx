@@ -70,7 +70,7 @@ export default function ProjectsScreen() {
           <Text style={styles.title}>Delivery portfolio</Text>
         </View>
         <Pressable accessibilityRole="button" onPress={() => router.push("/(workspace)/projects/new")} style={styles.addButton}>
-          <Plus color={colors.black} size={20} strokeWidth={2.8} />
+          <Plus color={colors.white} size={20} strokeWidth={2.8} />
         </Pressable>
       </View>
 
@@ -139,8 +139,8 @@ function SummaryTile({ label, value }: { label: string; value: number }) {
 const styles = StyleSheet.create({
   addButton: {
     alignItems: "center",
-    backgroundColor: colors.primary,
-    borderColor: colors.primaryDark,
+    backgroundColor: colors.foreground,
+    borderColor: colors.foreground,
     borderRadius: radii.lg,
     borderWidth: 1,
     height: 44,

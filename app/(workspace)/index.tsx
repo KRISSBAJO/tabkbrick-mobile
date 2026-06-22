@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { ArrowRight, CalendarDays, FolderOpen, Inbox, Pencil, Plus, Search } from "lucide-react-native";
 import { StatusPill } from "@/components/ui/StatusPill";
@@ -56,12 +57,13 @@ export default function DashboardScreen() {
   if (!user) return null;
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={colors.foreground} />}
-      showsVerticalScrollIndicator={false}
-      style={styles.safe}
-    >
+    <SafeAreaView style={styles.safe}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={colors.foreground} />}
+        showsVerticalScrollIndicator={false}
+        style={styles.scroll}
+      >
       <View style={styles.topBar}>
         <View>
           <Text style={styles.title}>Boards</Text>
@@ -72,7 +74,7 @@ export default function DashboardScreen() {
             <Search color={colors.foreground} size={22} strokeWidth={2.8} />
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => router.push("/(workspace)/projects/new")} style={styles.addButton}>
-            <Plus color={colors.black} size={24} strokeWidth={3} />
+            <Plus color={colors.white} size={24} strokeWidth={3} />
           </Pressable>
         </View>
       </View>
@@ -119,12 +121,12 @@ export default function DashboardScreen() {
             </View>
             <Pressable accessibilityRole="button" onPress={() => router.push("/(workspace)/projects")} style={styles.inlineAction}>
               <Text style={styles.inlineActionText}>Boards</Text>
-              <ArrowRight color={colors.primaryDark} size={17} strokeWidth={2.6} />
+              <ArrowRight color={colors.accent} size={17} strokeWidth={2.6} />
             </Pressable>
           </View>
 
           <View style={styles.boardList}>
-            {activeProjects.length ? activeProjects.map((project) => {
+            {activeProjects.length ? activeProjects.map((project, index) => {
               const health = projectHealth(project);
               return (
                 <Pressable
@@ -133,7 +135,7 @@ export default function DashboardScreen() {
                   onPress={() => router.push({ pathname: "/(workspace)/projects/[projectId]", params: { projectId: project.id } })}
                   style={styles.boardRow}
                 >
-                  <View style={styles.boardColor} />
+                  <View style={[styles.boardColor, { backgroundColor: swatchForIndex(index) }]} />
                   <View style={styles.boardText}>
                     <Text numberOfLines={1} style={styles.boardTitle}>{project.name}</Text>
                     <Text style={styles.boardMeta}>{project.key} - {project.progress}% - {humanize(project.status)}</Text>
@@ -143,7 +145,7 @@ export default function DashboardScreen() {
               );
             }) : (
               <Pressable accessibilityRole="button" onPress={() => router.push("/(workspace)/projects/new")} style={styles.emptyRow}>
-                <View style={styles.boardColor} />
+                <View style={[styles.boardColor, { backgroundColor: colors.accent }]} />
                 <View style={styles.boardText}>
                   <Text style={styles.boardTitle}>Create your first board</Text>
                   <Text style={styles.boardMeta}>Start a project workspace</Text>
@@ -182,12 +184,18 @@ export default function DashboardScreen() {
           </View>
         </>
       )}
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 function SectionTitle({ title }: { title: string }) {
   return <Text style={styles.sectionTitle}>{title}</Text>;
+}
+
+function swatchForIndex(index: number) {
+  const swatches = ["#2563eb", "#7c3aed", "#059669", "#dc8a23", "#111827"];
+  return swatches[index % swatches.length];
 }
 
 const styles = StyleSheet.create({
@@ -219,7 +227,7 @@ const styles = StyleSheet.create({
   },
   addButton: {
     alignItems: "center",
-    backgroundColor: colors.primary,
+    backgroundColor: colors.foreground,
     borderRadius: 22,
     height: 48,
     justifyContent: "center",
@@ -228,25 +236,26 @@ const styles = StyleSheet.create({
   },
   avatarDot: {
     alignItems: "center",
-    backgroundColor: colors.yellowSoft,
+    backgroundColor: colors.panelMuted,
     borderRadius: 18,
     height: 36,
     justifyContent: "center",
     width: 36,
   },
   avatarDotText: {
-    color: colors.warning,
+    color: colors.foreground,
     fontSize: 12,
     fontWeight: "900",
   },
   boardColor: {
-    backgroundColor: colors.primary,
-    borderRadius: radii.sm,
-    height: 34,
-    width: 34,
+    borderRadius: 12,
+    height: 36,
+    width: 36,
   },
   boardList: {
     backgroundColor: colors.panel,
+    borderColor: "rgba(16,16,15,0.04)",
+    borderWidth: 1,
     borderRadius: radii.xl,
     overflow: "hidden",
   },
@@ -276,8 +285,9 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   content: {
-    gap: 18,
-    padding: 18,
+    gap: 20,
+    paddingHorizontal: 20,
+    paddingTop: 12,
     paddingBottom: 116,
   },
   countText: {
@@ -306,12 +316,13 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   inboxPanel: {
-    backgroundColor: colors.yellowSoft,
-    borderColor: colors.primary,
-    borderRadius: 22,
-    borderWidth: 6,
-    gap: 12,
-    padding: 14,
+    backgroundColor: colors.panel,
+    borderColor: colors.line,
+    borderRadius: radii["2xl"],
+    borderWidth: 1,
+    gap: 14,
+    padding: 16,
+    ...shadow.card,
   },
   inboxTitle: {
     color: colors.foreground,
@@ -329,7 +340,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   inlineActionText: {
-    color: colors.primaryDark,
+    color: colors.accent,
     fontSize: 14,
     fontWeight: "900",
   },
@@ -338,7 +349,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   linkText: {
-    color: colors.primaryDark,
+    color: colors.accent,
     fontSize: 13,
     fontWeight: "900",
   },
@@ -365,7 +376,7 @@ const styles = StyleSheet.create({
   },
   quickAdd: {
     alignItems: "center",
-    backgroundColor: colors.panel,
+    backgroundColor: colors.panelMuted,
     borderRadius: radii.lg,
     flexDirection: "row",
     justifyContent: "space-between",
@@ -390,9 +401,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     flex: 1,
   },
+  scroll: {
+    backgroundColor: colors.background,
+    flex: 1,
+  },
   searchBar: {
     alignItems: "center",
     backgroundColor: colors.panel,
+    borderColor: "rgba(16,16,15,0.04)",
+    borderWidth: 1,
     borderRadius: 24,
     flexDirection: "row",
     gap: 10,
@@ -406,7 +423,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: colors.slate,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "900",
     textTransform: "uppercase",
   },
@@ -418,9 +435,10 @@ const styles = StyleSheet.create({
   },
   title: {
     color: colors.foreground,
-    fontSize: 38,
+    fontSize: 34,
     fontWeight: "900",
     letterSpacing: 0,
+    lineHeight: 38,
   },
   topActions: {
     alignItems: "center",

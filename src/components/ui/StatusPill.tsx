@@ -8,7 +8,7 @@ const toneStyles: Record<Tone, { backgroundColor: string; color: string }> = {
   green: { backgroundColor: colors.greenSoft, color: colors.success },
   neutral: { backgroundColor: colors.panelMuted, color: colors.inkSoft },
   red: { backgroundColor: colors.redSoft, color: colors.danger },
-  yellow: { backgroundColor: colors.yellowSoft, color: colors.warning },
+  yellow: { backgroundColor: colors.orangeSoft, color: colors.warning },
 };
 
 type StatusPillProps = {

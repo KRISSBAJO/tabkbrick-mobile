@@ -23,10 +23,10 @@ export default function WorkspaceTabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveBackgroundColor: colors.yellowSoft,
-        tabBarActiveTintColor: colors.primaryDark,
+        tabBarActiveBackgroundColor: colors.blueSoft,
+        tabBarActiveTintColor: colors.accent,
         tabBarHideOnKeyboard: true,
-        tabBarInactiveTintColor: colors.foreground,
+        tabBarInactiveTintColor: colors.inkSoft,
         tabBarItemStyle: styles.tabItem,
         tabBarLabelStyle: styles.label,
         tabBarStyle: styles.tabBar,
@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   tabBar: {
-    backgroundColor: "rgba(255,255,255,0.96)",
+    backgroundColor: "rgba(255,255,255,0.98)",
     borderColor: "rgba(16,16,15,0.06)",
     borderRadius: 34,
     borderTopColor: "rgba(16,16,15,0.06)",

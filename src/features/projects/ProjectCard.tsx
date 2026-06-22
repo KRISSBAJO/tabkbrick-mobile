@@ -17,7 +17,7 @@ export function ProjectCard({ onPress, project }: ProjectCardProps) {
     <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}>
       <View style={styles.topRow}>
         <View style={styles.icon}>
-          <FolderKanban color={colors.black} size={18} strokeWidth={2.6} />
+          <FolderKanban color={colors.accent} size={18} strokeWidth={2.6} />
         </View>
         <View style={styles.titleWrap}>
           <Text numberOfLines={1} style={styles.title}>{project.name}</Text>
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
   },
   icon: {
     alignItems: "center",
-    backgroundColor: colors.primary,
+    backgroundColor: colors.blueSoft,
     borderRadius: radii.md,
     height: 40,
     justifyContent: "center",
@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     transform: [{ translateY: 1 }],
   },
   progressFill: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accent,
     borderRadius: 99,
     height: 7,
   },

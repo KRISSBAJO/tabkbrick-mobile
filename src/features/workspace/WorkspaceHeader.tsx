@@ -33,14 +33,14 @@ export function WorkspaceHeader({ user }: WorkspaceHeaderProps) {
 const styles = StyleSheet.create({
   avatar: {
     alignItems: "center",
-    backgroundColor: colors.primary,
+    backgroundColor: colors.foreground,
     borderRadius: radii.lg,
     height: 42,
     justifyContent: "center",
     width: 42,
   },
   avatarText: {
-    color: colors.black,
+    color: colors.white,
     fontSize: 12,
     fontWeight: "900",
   },
