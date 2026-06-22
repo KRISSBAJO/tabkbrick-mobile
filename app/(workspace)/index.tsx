@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ArrowRight, CalendarDays, FolderOpen, Inbox, Pencil, Plus, Search } from "lucide-react-native";
+import { ArrowRight, CalendarDays, FolderOpen, Plus, Search } from "lucide-react-native";
 import { StatusPill } from "@/components/ui/StatusPill";
+import { ProjectCreateModal } from "@/features/projects/ProjectCreateModal";
 import { formatDate, humanize, isOverdue, projectHealth, statusTone } from "@/features/projects/projectFormat";
 import { listMeetings, listProjects, listTasks } from "@/lib/api";
 import { useAuthSession } from "@/lib/auth/AuthSessionProvider";
@@ -18,6 +19,7 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [creatingProject, setCreatingProject] = useState(false);
 
   const load = useCallback(async (showRefreshing = false) => {
     if (!accessToken) return;
@@ -51,10 +53,17 @@ export default function DashboardScreen() {
       .filter((task) => task.priority === "HIGH" || task.priority === "URGENT" || task.priority === "CRITICAL" || isOverdue(task.dueDate))
       .slice(0, 3)
   ), [openTasks]);
-  const activeProjects = projects.filter((project) => project.status !== "ARCHIVED").slice(0, 5);
+  const activeProjectList = useMemo(() => projects.filter((project) => project.status !== "ARCHIVED"), [projects]);
+  const visibleProjects = useMemo(() => activeProjectList.slice(0, 6), [activeProjectList]);
   const latestMeeting = meetings[0];
 
   if (!user) return null;
+
+  function handleProjectCreated(project: Project) {
+    setCreatingProject(false);
+    void load();
+    router.push({ pathname: "/(workspace)/projects/[projectId]", params: { projectId: project.id } });
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -66,22 +75,22 @@ export default function DashboardScreen() {
       >
       <View style={styles.topBar}>
         <View>
-          <Text style={styles.title}>Boards</Text>
-          <Text style={styles.subtitle}>{user.firstName ? `${user.firstName}'s workspace` : "Workspace"}</Text>
+          <Text style={styles.title}>Projects</Text>
+          <Text style={styles.subtitle}>{user.firstName ? `${user.firstName}'s portfolio` : "Project portfolio"}</Text>
         </View>
         <View style={styles.topActions}>
           <Pressable accessibilityRole="button" style={styles.roundButton}>
             <Search color={colors.foreground} size={22} strokeWidth={2.8} />
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={() => router.push("/(workspace)/projects/new")} style={styles.addButton}>
-            <Plus color={colors.white} size={24} strokeWidth={3} />
+          <Pressable accessibilityRole="button" onPress={() => setCreatingProject(true)} style={styles.addButton}>
+            <Plus color={colors.black} size={24} strokeWidth={3} />
           </Pressable>
         </View>
       </View>
 
       <View style={styles.searchBar}>
         <Search color={colors.inkSoft} size={20} strokeWidth={2.8} />
-        <Text style={styles.searchText}>Search boards, tasks, meetings</Text>
+        <Text style={styles.searchText}>Search projects, tasks, meetings</Text>
       </View>
 
       {loading ? (
@@ -98,61 +107,63 @@ export default function DashboardScreen() {
         </View>
       ) : (
         <>
-          <View style={styles.inboxPanel}>
-            <View style={styles.inboxHeader}>
-              <View style={styles.inboxTitleWrap}>
-                <Inbox color={colors.foreground} size={20} strokeWidth={2.6} />
-                <Text style={styles.inboxTitle}>Inbox</Text>
-                <Text style={styles.countText}>{openTasks.length}</Text>
+          <View style={styles.projectBoard}>
+            <View style={styles.projectBoardHeader}>
+              <View style={styles.projectBoardTitleWrap}>
+                <FolderOpen color={colors.foreground} size={20} strokeWidth={2.6} />
+                <Text style={styles.projectBoardTitle}>Projects</Text>
+                <Text style={styles.projectBoardCount}>{projects.length}</Text>
               </View>
-              <Pencil color={colors.foreground} size={20} strokeWidth={2.5} />
+              <Text style={styles.projectBoardMeta}>{activeProjectList.length} active</Text>
             </View>
-            <Pressable accessibilityRole="button" onPress={() => router.push("/(workspace)/tasks")} style={styles.quickAdd}>
-              <Text style={styles.quickAddText}>Review today's task queue</Text>
+            <Pressable accessibilityRole="button" onPress={() => setCreatingProject(true)} style={styles.projectBoardAction}>
+              <Text style={styles.projectBoardActionText}>Create a project</Text>
               <Plus color={colors.inkSoft} size={18} strokeWidth={2.5} />
             </Pressable>
           </View>
 
-          <SectionTitle title="Your workspaces" />
-          <View style={styles.workspaceHeader}>
-            <View style={styles.workspaceTitle}>
-              <FolderOpen color={colors.foreground} size={19} strokeWidth={2.5} />
-              <Text style={styles.workspaceName}>TaskBricks Workspace</Text>
-            </View>
-            <Pressable accessibilityRole="button" onPress={() => router.push("/(workspace)/projects")} style={styles.inlineAction}>
-              <Text style={styles.inlineActionText}>Boards</Text>
-              <ArrowRight color={colors.accent} size={17} strokeWidth={2.6} />
-            </Pressable>
-          </View>
+          <SectionHeader
+            actionLabel={projects.length > visibleProjects.length ? `View all ${projects.length}` : "View all"}
+            onPress={() => router.push("/(workspace)/projects")}
+            title="Recent projects"
+          />
 
-          <View style={styles.boardList}>
-            {activeProjects.length ? activeProjects.map((project, index) => {
+          <View style={styles.projectList}>
+            {visibleProjects.length ? visibleProjects.map((project, index) => {
               const health = projectHealth(project);
               return (
                 <Pressable
                   accessibilityRole="button"
                   key={project.id}
                   onPress={() => router.push({ pathname: "/(workspace)/projects/[projectId]", params: { projectId: project.id } })}
-                  style={styles.boardRow}
+                  style={styles.projectRow}
                 >
-                  <View style={[styles.boardColor, { backgroundColor: swatchForIndex(index) }]} />
-                  <View style={styles.boardText}>
-                    <Text numberOfLines={1} style={styles.boardTitle}>{project.name}</Text>
-                    <Text style={styles.boardMeta}>{project.key} - {project.progress}% - {humanize(project.status)}</Text>
+                  <View style={[styles.projectRail, { backgroundColor: swatchForIndex(index) }]} />
+                  <View style={styles.projectRowText}>
+                    <Text numberOfLines={1} style={styles.projectRowTitle}>{project.name}</Text>
+                    <Text style={styles.projectRowMeta}>{project.key} - {project.progress}% - {humanize(project.status)}</Text>
                   </View>
                   <StatusPill label={health.label} tone={health.tone} />
                 </Pressable>
               );
             }) : (
-              <Pressable accessibilityRole="button" onPress={() => router.push("/(workspace)/projects/new")} style={styles.emptyRow}>
-                <View style={[styles.boardColor, { backgroundColor: colors.accent }]} />
-                <View style={styles.boardText}>
-                  <Text style={styles.boardTitle}>Create your first board</Text>
-                  <Text style={styles.boardMeta}>Start a project workspace</Text>
+              <Pressable accessibilityRole="button" onPress={() => setCreatingProject(true)} style={styles.emptyRow}>
+                <View style={[styles.projectRail, { backgroundColor: colors.accent }]} />
+                <View style={styles.projectRowText}>
+                  <Text style={styles.projectRowTitle}>Create your first project</Text>
+                  <Text style={styles.projectRowMeta}>Start a project workspace</Text>
                 </View>
                 <ArrowRight color={colors.inkSoft} size={17} />
               </Pressable>
             )}
+            {projects.length > visibleProjects.length ? (
+              <Pressable accessibilityRole="button" onPress={() => router.push("/(workspace)/projects")} style={styles.moreProjectsRow}>
+                <Text style={styles.moreProjectsText}>Show the full portfolio</Text>
+                <View style={styles.moreProjectsBadge}>
+                  <Text style={styles.moreProjectsBadgeText}>{projects.length}</Text>
+                </View>
+              </Pressable>
+            ) : null}
           </View>
 
           <SectionTitle title="Today" />
@@ -185,12 +196,29 @@ export default function DashboardScreen() {
         </>
       )}
       </ScrollView>
+      <ProjectCreateModal
+        onClose={() => setCreatingProject(false)}
+        onCreated={handleProjectCreated}
+        visible={creatingProject}
+      />
     </SafeAreaView>
   );
 }
 
 function SectionTitle({ title }: { title: string }) {
   return <Text style={styles.sectionTitle}>{title}</Text>;
+}
+
+function SectionHeader({ actionLabel, onPress, title }: { actionLabel: string; onPress: () => void; title: string }) {
+  return (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <Pressable accessibilityRole="button" onPress={onPress} style={styles.inlineAction}>
+        <Text style={styles.inlineActionText}>{actionLabel}</Text>
+        <ArrowRight color={colors.accent} size={16} strokeWidth={2.6} />
+      </Pressable>
+    </View>
+  );
 }
 
 function swatchForIndex(index: number) {
@@ -227,7 +255,9 @@ const styles = StyleSheet.create({
   },
   addButton: {
     alignItems: "center",
-    backgroundColor: colors.foreground,
+    backgroundColor: colors.primary,
+    borderColor: colors.primaryDark,
+    borderWidth: 1,
     borderRadius: 22,
     height: 48,
     justifyContent: "center",
@@ -247,25 +277,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "900",
   },
-  boardColor: {
-    borderRadius: 12,
-    height: 36,
-    width: 36,
-  },
-  boardList: {
+  projectList: {
     backgroundColor: colors.panel,
     borderColor: "rgba(16,16,15,0.04)",
     borderWidth: 1,
     borderRadius: radii.xl,
     overflow: "hidden",
   },
-  boardMeta: {
-    color: colors.inkSoft,
-    fontSize: 12,
-    fontWeight: "700",
-    marginTop: 3,
-  },
-  boardRow: {
+  projectRow: {
     alignItems: "center",
     borderBottomColor: colors.line,
     borderBottomWidth: 1,
@@ -275,25 +294,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  boardText: {
-    flex: 1,
-    minWidth: 0,
-  },
-  boardTitle: {
-    color: colors.foreground,
-    fontSize: 16,
-    fontWeight: "900",
-  },
   content: {
     gap: 20,
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 116,
-  },
-  countText: {
-    color: colors.accent,
-    fontSize: 13,
-    fontWeight: "900",
   },
   emptyRow: {
     alignItems: "center",
@@ -309,30 +314,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
     lineHeight: 18,
-  },
-  inboxHeader: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  inboxPanel: {
-    backgroundColor: colors.panel,
-    borderColor: colors.line,
-    borderRadius: radii["2xl"],
-    borderWidth: 1,
-    gap: 14,
-    padding: 16,
-    ...shadow.card,
-  },
-  inboxTitle: {
-    color: colors.foreground,
-    fontSize: 16,
-    fontWeight: "900",
-  },
-  inboxTitleWrap: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 8,
   },
   inlineAction: {
     alignItems: "center",
@@ -374,19 +355,99 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 14,
   },
-  quickAdd: {
+  moreProjectsBadge: {
     alignItems: "center",
-    backgroundColor: colors.panelMuted,
+    backgroundColor: colors.blueSoft,
+    borderRadius: 999,
+    minWidth: 32,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  moreProjectsBadgeText: {
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  moreProjectsRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    minHeight: 56,
+    paddingHorizontal: 16,
+  },
+  moreProjectsText: {
+    color: colors.accent,
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  projectBoard: {
+    backgroundColor: "#fffaf0",
+    borderColor: "#f3d85a",
+    borderRadius: 22,
+    borderWidth: 2,
+    gap: 12,
+    padding: 14,
+    ...shadow.card,
+  },
+  projectBoardAction: {
+    alignItems: "center",
+    backgroundColor: colors.panel,
     borderRadius: radii.lg,
     flexDirection: "row",
     justifyContent: "space-between",
     minHeight: 58,
     paddingHorizontal: 16,
   },
-  quickAddText: {
+  projectBoardActionText: {
     color: colors.inkSoft,
     fontSize: 16,
     fontWeight: "800",
+  },
+  projectBoardCount: {
+    color: colors.accent,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  projectBoardHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  projectBoardTitle: {
+    color: colors.foreground,
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  projectBoardTitleWrap: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  projectBoardMeta: {
+    color: colors.inkSoft,
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  projectRail: {
+    borderRadius: 999,
+    height: 42,
+    width: 6,
+  },
+  projectRowMeta: {
+    color: colors.inkSoft,
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 3,
+  },
+  projectRowText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  projectRowTitle: {
+    color: colors.foreground,
+    fontSize: 16,
+    fontWeight: "900",
   },
   roundButton: {
     alignItems: "center",
@@ -427,6 +488,11 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     textTransform: "uppercase",
   },
+  sectionHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
   subtitle: {
     color: colors.inkSoft,
     fontSize: 13,
@@ -449,21 +515,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
-  },
-  workspaceHeader: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingTop: 2,
-  },
-  workspaceName: {
-    color: colors.foreground,
-    fontSize: 16,
-    fontWeight: "900",
-  },
-  workspaceTitle: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 8,
   },
 });

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { Plus, Search } from "lucide-react-native";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { ProjectCard } from "@/features/projects/ProjectCard";
+import { ProjectCreateModal } from "@/features/projects/ProjectCreateModal";
 import { ProjectSelector } from "@/features/projects/ProjectSelector";
 import { humanize, projectStatuses, type ProjectStatus } from "@/features/projects/projectFormat";
 import { useAuthSession } from "@/lib/auth/AuthSessionProvider";
@@ -23,6 +24,7 @@ export default function ProjectsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [creatingProject, setCreatingProject] = useState(false);
 
   const load = useCallback(async (showRefreshing = false) => {
     if (!accessToken) return;
@@ -57,74 +59,100 @@ export default function ProjectsScreen() {
     return { active, planning, total: projects.length };
   }, [projects]);
 
+  const data = loading || error ? [] : projects;
+
   return (
-    <ScrollView
-      contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={colors.foreground} />}
-      showsVerticalScrollIndicator={false}
-      style={styles.safe}
-    >
-      <View style={styles.header}>
-        <View style={styles.titleWrap}>
-          <Text style={styles.eyebrow}>Projects</Text>
-          <Text style={styles.title}>Delivery portfolio</Text>
-        </View>
-        <Pressable accessibilityRole="button" onPress={() => router.push("/(workspace)/projects/new")} style={styles.addButton}>
-          <Plus color={colors.white} size={20} strokeWidth={2.8} />
-        </Pressable>
-      </View>
+    <>
+      <FlatList
+        ListEmptyComponent={!loading && !error ? <ProjectsEmpty onCreate={() => setCreatingProject(true)} /> : null}
+        ListFooterComponent={<View style={styles.bottomSpacer} />}
+        ListHeaderComponent={(
+          <View style={styles.headerStack}>
+            <View style={styles.header}>
+              <View style={styles.titleWrap}>
+                <Text style={styles.eyebrow}>Projects</Text>
+                <Text style={styles.title}>Delivery portfolio</Text>
+              </View>
+              <Pressable accessibilityRole="button" onPress={() => setCreatingProject(true)} style={styles.addButton}>
+                <Plus color={colors.black} size={20} strokeWidth={2.8} />
+              </Pressable>
+            </View>
 
-      <View style={styles.summaryGrid}>
-        <SummaryTile label="Total" value={summary.total} />
-        <SummaryTile label="Active" value={summary.active} />
-        <SummaryTile label="Planning" value={summary.planning} />
-      </View>
+            <View style={styles.summaryGrid}>
+              <SummaryTile label="Total" value={summary.total} />
+              <SummaryTile label="Active" value={summary.active} />
+              <SummaryTile label="Planning" value={summary.planning} />
+            </View>
 
-      <View style={styles.filters}>
-        <Field
-          label="Search"
-          leftAccessory={<Search color={colors.inkSoft} size={18} />}
-          onChangeText={setSearch}
-          placeholder="Project, key, client"
-          value={search}
-        />
-        <ProjectSelector
-          label="Status"
-          onChange={setStatus}
-          options={[{ label: "All", value: allStatuses }, ...projectStatuses.map((item) => ({ label: humanize(item), value: item }))]}
-          value={status}
-        />
-      </View>
+            <View style={styles.filters}>
+              <Field
+                label="Search"
+                leftAccessory={<Search color={colors.inkSoft} size={18} />}
+                onChangeText={setSearch}
+                placeholder="Project, key, client"
+                value={search}
+              />
+              <ProjectSelector
+                label="Status"
+                onChange={setStatus}
+                options={[{ label: "All", value: allStatuses }, ...projectStatuses.map((item) => ({ label: humanize(item), value: item }))]}
+                value={status}
+              />
+            </View>
 
-      {loading ? (
-        <View style={styles.loading}>
-          <ActivityIndicator color={colors.foreground} />
-          <Text style={styles.muted}>Loading projects</Text>
-        </View>
-      ) : error ? (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{error}</Text>
-          <Button label="Retry" onPress={() => void load()} variant="outline" />
-        </View>
-      ) : projects.length ? (
-        <View style={styles.list}>
-          {projects.map((project) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              onPress={() => router.push({ pathname: "/(workspace)/projects/[projectId]", params: { projectId: project.id } })}
-            />
-          ))}
-        </View>
-      ) : (
-        <View style={styles.empty}>
-          <Text style={styles.emptyTitle}>No projects found</Text>
-          <Text style={styles.muted}>Create a project or adjust the filter.</Text>
-          <Button label="Create project" onPress={() => router.push("/(workspace)/projects/new")} rightIcon={<Plus color={colors.black} size={16} />} />
-        </View>
-      )}
-    </ScrollView>
+            {loading ? (
+              <View style={styles.loading}>
+                <ActivityIndicator color={colors.foreground} />
+                <Text style={styles.muted}>Loading projects</Text>
+              </View>
+            ) : error ? (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{error}</Text>
+                <Button label="Retry" onPress={() => void load()} variant="outline" />
+              </View>
+            ) : null}
+          </View>
+        )}
+        ItemSeparatorComponent={ProjectSeparator}
+        contentContainerStyle={styles.content}
+        data={data}
+        keyExtractor={(project) => project.id}
+        onRefresh={() => void load(true)}
+        refreshing={refreshing}
+        renderItem={({ item }) => (
+          <ProjectCard
+            project={item}
+            onPress={() => router.push({ pathname: "/(workspace)/projects/[projectId]", params: { projectId: item.id } })}
+          />
+        )}
+        showsVerticalScrollIndicator={false}
+        style={styles.safe}
+      />
+      <ProjectCreateModal
+        onClose={() => setCreatingProject(false)}
+        onCreated={(project) => {
+          setCreatingProject(false);
+          void load();
+          router.push({ pathname: "/(workspace)/projects/[projectId]", params: { projectId: project.id } });
+        }}
+        visible={creatingProject}
+      />
+    </>
   );
+}
+
+function ProjectsEmpty({ onCreate }: { onCreate: () => void }) {
+  return (
+    <View style={styles.empty}>
+      <Text style={styles.emptyTitle}>No projects found</Text>
+      <Text style={styles.muted}>Create a project or adjust the filter.</Text>
+      <Button label="Create project" onPress={onCreate} rightIcon={<Plus color={colors.black} size={16} />} />
+    </View>
+  );
+}
+
+function ProjectSeparator() {
+  return <View style={styles.projectSeparator} />;
 }
 
 function SummaryTile({ label, value }: { label: string; value: number }) {
@@ -139,8 +167,8 @@ function SummaryTile({ label, value }: { label: string; value: number }) {
 const styles = StyleSheet.create({
   addButton: {
     alignItems: "center",
-    backgroundColor: colors.foreground,
-    borderColor: colors.foreground,
+    backgroundColor: colors.primary,
+    borderColor: colors.primaryDark,
     borderRadius: radii.lg,
     borderWidth: 1,
     height: 44,
@@ -148,9 +176,10 @@ const styles = StyleSheet.create({
     width: 44,
   },
   content: {
-    gap: 20,
     padding: 20,
-    paddingBottom: 112,
+  },
+  bottomSpacer: {
+    height: 112,
   },
   empty: {
     alignItems: "center",
@@ -194,8 +223,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
   },
-  list: {
-    gap: 12,
+  headerStack: {
+    gap: 20,
+    marginBottom: 12,
   },
   loading: {
     alignItems: "center",
@@ -212,6 +242,9 @@ const styles = StyleSheet.create({
   safe: {
     backgroundColor: colors.background,
     flex: 1,
+  },
+  projectSeparator: {
+    height: 12,
   },
   summaryGrid: {
     flexDirection: "row",
