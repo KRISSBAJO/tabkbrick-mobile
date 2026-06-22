@@ -2,6 +2,7 @@ import { boundedLimit, openApiRequest, type OpenApiJsonBody, type OpenApiQuery }
 
 type ListTasksQuery = OpenApiQuery<"/api/v1/tasks", "get">;
 export type CreateTaskPayload = OpenApiJsonBody<"/api/v1/tasks", "post">;
+export type UpdateTaskPayload = OpenApiJsonBody<"/api/v1/tasks/{taskId}", "patch">;
 
 export function listTasks(token: string, query: ListTasksQuery = {}) {
   return openApiRequest("/api/v1/tasks", "get", {
@@ -29,5 +30,20 @@ export function createTask(token: string, body: CreateTaskPayload) {
     token,
     body,
     pathParams: {},
+  });
+}
+
+export function updateTask(token: string, taskId: string, body: UpdateTaskPayload) {
+  return openApiRequest("/api/v1/tasks/{taskId}", "patch", {
+    token,
+    body,
+    pathParams: { taskId },
+  });
+}
+
+export function deleteTask(token: string, taskId: string) {
+  return openApiRequest("/api/v1/tasks/{taskId}", "delete", {
+    token,
+    pathParams: { taskId },
   });
 }
