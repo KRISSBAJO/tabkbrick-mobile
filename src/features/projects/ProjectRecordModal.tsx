@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { ProjectDateField, ProjectDatePickerSheet } from "@/features/projects/ProjectDatePicker";
 import { ProjectSelector } from "@/features/projects/ProjectSelector";
+import { withFontStyles } from "@/lib/theme/fontDefaults";
 import { colors, radii, shadow } from "@/lib/theme/tokens";
 
 export type ProjectRecordKind =
@@ -357,7 +358,7 @@ function numberText(value: string) {
   return value.replace(/[^0-9.]/g, "");
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(withFontStyles({
   backdrop: {
     flex: 1,
     justifyContent: "flex-end",
@@ -474,4 +475,4 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-});
+}));

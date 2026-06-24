@@ -29,22 +29,13 @@ export default function SignupScreen() {
       setError("Password must be at least 12 characters.");
       return;
     }
-
     setLoading(true);
     try {
-      const result = await signUp({
-        email,
-        firstName,
-        lastName,
-        password,
-        tenantName,
-        tenantSlug,
-      });
+      const result = await signUp({ email, firstName, lastName, password, tenantName, tenantSlug });
       if (result.status === "verification") {
         setNotice({ devLink: result.devLink, message: result.message });
         return;
       }
-
       router.replace("/(workspace)");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to create workspace.");
@@ -56,70 +47,95 @@ export default function SignupScreen() {
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.keyboard}>
       <AuthShell
+        badge="Free to start"
         title="Create workspace"
+        subtitle="Set up your team in under 2 minutes"
       >
         <View style={styles.stack}>
-          <Field
-            label="Organization"
-            value={tenantName}
-            onChangeText={setTenantName}
-            placeholder="Acme Inc."
-            leftAccessory={<Building2 color={colors.inkSoft} size={18} strokeWidth={2.3} />}
-          />
 
-          <Field
-            label="Workspace"
-            value={tenantSlug}
-            onChangeText={(value) => setTenantSlug(slugify(value))}
-            placeholder="acme"
-            leftAccessory={<Text style={styles.atIcon}>@</Text>}
-          />
+          {/* ── Workspace section ── */}
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldGroupLabel}>Workspace</Text>
+            <View style={styles.fields}>
+              <Field
+                label="Organization name"
+                value={tenantName}
+                onChangeText={setTenantName}
+                placeholder="Acme Inc."
+                leftAccessory={<Building2 color={colors.inkSoft} size={18} strokeWidth={2.3} />}
+              />
+              <View style={styles.fieldDivider} />
+              <Field
+                label="Workspace URL"
+                value={tenantSlug}
+                onChangeText={(value) => setTenantSlug(slugify(value))}
+                placeholder="acme"
+                leftAccessory={<Text style={styles.atIcon}>@</Text>}
+                helperText="Letters, numbers and hyphens only"
+              />
+            </View>
+          </View>
 
-          <Field
-            label="First name"
-            value={firstName}
-            onChangeText={setFirstName}
-            placeholder="Ada"
-            leftAccessory={<UserRound color={colors.inkSoft} size={18} strokeWidth={2.3} />}
-          />
-
-          <Field label="Last name" value={lastName} onChangeText={setLastName} placeholder="Lovelace" />
-
-          <Field
-            label="Work email"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            placeholder="ada@acme.com"
-            leftAccessory={<Mail color={colors.inkSoft} size={18} strokeWidth={2.3} />}
-          />
-
-          <Field
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Min. 12 characters"
-            secureTextEntry={!passwordVisible}
-            leftAccessory={<KeyRound color={colors.inkSoft} size={18} strokeWidth={2.3} />}
-            rightAccessory={(
-              <Pressable
-                accessibilityLabel={passwordVisible ? "Hide password" : "Show password"}
-                accessibilityRole="button"
-                hitSlop={8}
-                onPress={() => setPasswordVisible((visible) => !visible)}
-                style={styles.passwordToggle}
-              >
-                {passwordVisible ? (
-                  <EyeOff color={colors.inkSoft} size={20} strokeWidth={2.4} />
-                ) : (
-                  <Eye color={colors.inkSoft} size={20} strokeWidth={2.4} />
+          {/* ── Account section ── */}
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldGroupLabel}>Your account</Text>
+            <View style={styles.fields}>
+              <View style={styles.nameRow}>
+                <View style={styles.nameField}>
+                  <Field
+                    label="First name"
+                    value={firstName}
+                    onChangeText={setFirstName}
+                    placeholder="Ada"
+                    leftAccessory={<UserRound color={colors.inkSoft} size={18} strokeWidth={2.3} />}
+                  />
+                </View>
+                <View style={styles.nameDividerV} />
+                <View style={styles.nameField}>
+                  <Field
+                    label="Last name"
+                    value={lastName}
+                    onChangeText={setLastName}
+                    placeholder="Lovelace"
+                  />
+                </View>
+              </View>
+              <View style={styles.fieldDivider} />
+              <Field
+                label="Work email"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                placeholder="ada@acme.com"
+                leftAccessory={<Mail color={colors.inkSoft} size={18} strokeWidth={2.3} />}
+              />
+              <View style={styles.fieldDivider} />
+              <Field
+                label="Password"
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Min. 12 characters"
+                secureTextEntry={!passwordVisible}
+                leftAccessory={<KeyRound color={colors.inkSoft} size={18} strokeWidth={2.3} />}
+                rightAccessory={(
+                  <Pressable
+                    accessibilityLabel={passwordVisible ? "Hide password" : "Show password"}
+                    accessibilityRole="button"
+                    hitSlop={8}
+                    onPress={() => setPasswordVisible((v) => !v)}
+                    style={styles.eyeBtn}
+                  >
+                    {passwordVisible
+                      ? <EyeOff color={colors.inkSoft} size={20} strokeWidth={2.4} />
+                      : <Eye color={colors.inkSoft} size={20} strokeWidth={2.4} />}
+                  </Pressable>
                 )}
-              </Pressable>
-            )}
-          />
+              />
+            </View>
+          </View>
 
-          {error ? <Message text={error} /> : null}
-          {notice ? <Notice devLink={notice.devLink} message={notice.message} /> : null}
+          {error ? <ErrorMessage text={error} /> : null}
+          {notice ? <SuccessNotice devLink={notice.devLink} message={notice.message} /> : null}
 
           <Button
             label="Create workspace"
@@ -128,38 +144,54 @@ export default function SignupScreen() {
             rightIcon={<ArrowRight color={colors.black} size={16} strokeWidth={2.8} />}
           />
 
-          <View style={styles.footerLink}>
-            <Text style={styles.footerText}>Already have a workspace?</Text>
+          {/* Trust signal */}
+          <Text style={styles.trustNote}>
+            By creating a workspace you agree to our Terms and Privacy Policy.
+          </Text>
+
+          {/* Footer */}
+          <View style={styles.footer}>
+            <Text style={styles.footerMuted}>Already have a workspace?</Text>
             <Pressable accessibilityRole="button" hitSlop={8} onPress={() => router.push("/login")}>
-              <Text style={styles.footerAction}>Sign in</Text>
+              <Text style={styles.footerLink}>Sign in</Text>
             </Pressable>
           </View>
+
         </View>
       </AuthShell>
     </KeyboardAvoidingView>
   );
 }
 
-function Message({ text }: { text: string }) {
+// ─── Sub-components ──────────────────────────────────────────────────────────
+
+function ErrorMessage({ text }: { text: string }) {
   return (
-    <View style={styles.errorMessage}>
-      <Text style={styles.errorText}>{text}</Text>
+    <View style={styles.errorMsg}>
+      <Text style={styles.errorTxt}>{text}</Text>
     </View>
   );
 }
 
-function Notice({ devLink, message }: { devLink?: string; message: string }) {
+function SuccessNotice({ devLink, message }: { devLink?: string; message: string }) {
   return (
-    <View style={styles.noticeMessage}>
-      <Text style={styles.noticeText}>{message}</Text>
+    <View style={styles.successMsg}>
+      <Text style={styles.successTxt}>{message}</Text>
       {devLink ? (
-        <Pressable accessibilityRole="button" hitSlop={8} onPress={() => void WebBrowser.openBrowserAsync(devLink)} style={styles.noticeLinkWrap}>
-          <Text style={styles.noticeLink}>Open local verification link</Text>
+        <Pressable
+          accessibilityRole="button"
+          hitSlop={8}
+          onPress={() => void WebBrowser.openBrowserAsync(devLink)}
+          style={styles.devLinkBtn}
+        >
+          <Text style={styles.devLinkText}>Open verification link</Text>
         </Pressable>
       ) : null}
     </View>
   );
 }
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function slugify(value: string) {
   return value
@@ -169,39 +201,80 @@ function slugify(value: string) {
     .replace(/^-/, "");
 }
 
+// ─── Styles ──────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   atIcon: {
     color: colors.inkSoft,
     fontSize: 15,
     fontWeight: "900",
   },
-  errorMessage: {
+  devLinkBtn: {
+    alignSelf: "flex-start",
+    marginTop: 8,
+  },
+  devLinkText: {
+    color: colors.success,
+    fontSize: 12,
+    fontWeight: "900",
+    textDecorationLine: "underline",
+  },
+  errorMsg: {
     backgroundColor: colors.redSoft,
     borderColor: "#fecaca",
     borderRadius: radii.md,
     borderWidth: 1,
-    padding: 12,
+    padding: 13,
   },
-  errorText: {
+  errorTxt: {
     color: colors.danger,
     fontSize: 13,
     fontWeight: "800",
-    lineHeight: 18,
+    lineHeight: 19,
   },
-  footerAction: {
+  eyeBtn: {
+    alignItems: "center",
+    height: 44,
+    justifyContent: "center",
+    width: 44,
+  },
+  fieldDivider: {
+    backgroundColor: colors.line,
+    height: 1,
+    marginHorizontal: 4,
+  },
+  fieldGroup: {
+    gap: 10,
+  },
+  fieldGroupLabel: {
+    color: colors.inkSoft,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.6,
+    marginLeft: 2,
+    textTransform: "uppercase",
+  },
+  fields: {
+    backgroundColor: colors.panel,
+    borderColor: colors.line,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    gap: 14,
+    padding: 14,
+  },
+  footer: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 5,
+    justifyContent: "center",
+  },
+  footerLink: {
     color: colors.foreground,
     fontSize: 13,
     fontWeight: "900",
     textDecorationLine: "underline",
   },
-  footerLink: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 5,
-    justifyContent: "center",
-    paddingTop: 4,
-  },
-  footerText: {
+  footerMuted: {
     color: colors.inkSoft,
     fontSize: 13,
     fontWeight: "700",
@@ -209,36 +282,38 @@ const styles = StyleSheet.create({
   keyboard: {
     flex: 1,
   },
-  noticeLink: {
-    color: colors.foreground,
-    fontSize: 12,
-    fontWeight: "900",
-    textDecorationLine: "underline",
+  nameDividerV: {
+    backgroundColor: colors.line,
+    width: 1,
   },
-  noticeLinkWrap: {
-    alignSelf: "flex-start",
-    marginTop: 8,
+  nameField: {
+    flex: 1,
   },
-  noticeMessage: {
+  nameRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  stack: {
+    gap: 22,
+  },
+  successMsg: {
     backgroundColor: colors.greenSoft,
     borderColor: "#bbf7d0",
     borderRadius: radii.md,
     borderWidth: 1,
-    padding: 12,
+    padding: 13,
   },
-  noticeText: {
+  successTxt: {
     color: colors.success,
     fontSize: 13,
     fontWeight: "800",
-    lineHeight: 18,
+    lineHeight: 19,
   },
-  passwordToggle: {
-    alignItems: "center",
-    height: 44,
-    justifyContent: "center",
-    width: 44,
-  },
-  stack: {
-    gap: 20,
+  trustNote: {
+    color: colors.inkSoft,
+    fontSize: 11,
+    fontWeight: "700",
+    lineHeight: 17,
+    textAlign: "center",
   },
 });

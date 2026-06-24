@@ -1,30 +1,37 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { Plus, Search } from "lucide-react-native";
-import { Button } from "@/components/ui/Button";
-import { Field } from "@/components/ui/Field";
-import { ProjectCard } from "@/features/projects/ProjectCard";
+import { ArrowRight, CalendarDays, FolderKanban, Plus, Search } from "lucide-react-native";
+import { StatusPill } from "@/components/ui/StatusPill";
 import { ProjectCreateModal } from "@/features/projects/ProjectCreateModal";
-import { ProjectSelector } from "@/features/projects/ProjectSelector";
-import { humanize, projectStatuses, type ProjectStatus } from "@/features/projects/projectFormat";
-import { useAuthSession } from "@/lib/auth/AuthSessionProvider";
+import {
+  formatDate,
+  humanize,
+  projectHealth,
+  projectStatuses,
+  statusTone,
+  summarizeProject,
+  type ProjectStatus,
+} from "@/features/projects/projectFormat";
 import { listProjects } from "@/lib/api";
-import { colors, radii } from "@/lib/theme/tokens";
+import { useAuthSession } from "@/lib/auth/AuthSessionProvider";
+import { withFontStyles } from "@/lib/theme/fontDefaults";
+import { colors, radii, shadow } from "@/lib/theme/tokens";
 import type { Project } from "@/lib/types";
 
-const allStatuses = "ALL";
-type StatusFilter = ProjectStatus | typeof allStatuses;
+const ALL = "ALL";
+type StatusFilter = ProjectStatus | typeof ALL;
 
 export default function ProjectsScreen() {
   const { accessToken } = useAuthSession();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<StatusFilter>(allStatuses);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState("");
   const [creatingProject, setCreatingProject] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(ALL);
 
   const load = useCallback(async (showRefreshing = false) => {
     if (!accessToken) return;
@@ -33,9 +40,9 @@ export default function ProjectsScreen() {
     setError("");
     try {
       const result = await listProjects(accessToken, {
-        limit: 50,
+        limit: 100,
         search: search.trim() || undefined,
-        status: status === allStatuses ? undefined : status,
+        status: statusFilter === ALL ? undefined : statusFilter,
       });
       setProjects(Array.isArray(result) ? result : result.data);
     } catch (caught) {
@@ -44,89 +51,130 @@ export default function ProjectsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [accessToken, search, status]);
+  }, [accessToken, search, statusFilter]);
 
   useEffect(() => {
-    const handle = setTimeout(() => {
-      void load();
-    }, 250);
-    return () => clearTimeout(handle);
+    const t = setTimeout(() => void load(), 250);
+    return () => clearTimeout(t);
   }, [load]);
 
-  const summary = useMemo(() => {
-    const active = projects.filter((project) => project.status === "ACTIVE").length;
-    const planning = projects.filter((project) => project.status === "PLANNING").length;
-    return { active, planning, total: projects.length };
-  }, [projects]);
+  const summary = useMemo(() => ({
+    active: projects.filter((p) => p.status === "ACTIVE").length,
+    planning: projects.filter((p) => p.status === "PLANNING" || p.status === "ON_HOLD").length,
+    total: projects.length,
+  }), [projects]);
 
-  const data = loading || error ? [] : projects;
+  const listData = loading || error ? [] : projects;
+
+  function openProject(project: Project) {
+    router.push({ pathname: "/(workspace)/projects/[projectId]", params: { projectId: project.id } });
+  }
+
+  const statusOptions: { label: string; value: StatusFilter }[] = [
+    { label: "All", value: ALL },
+    ...projectStatuses.map((s) => ({ label: humanize(s), value: s })),
+  ];
+
+  const ListHeader = (
+    <View style={styles.headerStack}>
+      {/* ── Title row ── */}
+      <View style={styles.titleRow}>
+        <View style={styles.titleBlock}>
+          <Text style={styles.title}>Projects</Text>
+          <Text style={styles.subtitle}>{summary.total} total · {summary.active} active · {summary.planning} on hold</Text>
+        </View>
+        <Pressable
+          accessibilityLabel="Create project"
+          accessibilityRole="button"
+          onPress={() => setCreatingProject(true)}
+          style={styles.addBtn}
+        >
+          <Plus color={colors.black} size={22} strokeWidth={3} />
+        </Pressable>
+      </View>
+
+      {/* ── Search ── */}
+      <View style={styles.searchBar}>
+        <Search color={colors.inkSoft} size={18} strokeWidth={2.5} />
+        <TextInput
+          autoCapitalize="none"
+          onChangeText={setSearch}
+          placeholder="Search projects…"
+          placeholderTextColor={colors.inkSoft}
+          style={styles.searchInput}
+          value={search}
+        />
+        {search ? (
+          <Pressable accessibilityRole="button" onPress={() => setSearch("")} style={styles.searchClear}>
+            <Text style={styles.searchClearText}>✕</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      {/* ── Status filter chips ── */}
+      <ScrollView contentContainerStyle={styles.chipRail} horizontal showsHorizontalScrollIndicator={false}>
+        {statusOptions.map((opt) => {
+          const active = opt.value === statusFilter;
+          return (
+            <Pressable
+              accessibilityRole="button"
+              key={opt.value}
+              onPress={() => setStatusFilter(opt.value)}
+              style={[styles.chip, active && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>{opt.label}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      {/* ── Loading / error ── */}
+      {loading ? (
+        <View style={styles.loadingCard}>
+          <ActivityIndicator color={colors.accent} size="large" />
+          <Text style={styles.loadingText}>Loading projects…</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{error}</Text>
+          <Pressable accessibilityRole="button" onPress={() => void load()} style={styles.retryBtn}>
+            <Text style={styles.retryText}>Try again</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {/* ── Count label ── */}
+      {!loading && !error && listData.length > 0 && (
+        <View style={styles.countRow}>
+          <View style={styles.countTitleRow}>
+            <View style={styles.countIconWrap}>
+              <FolderKanban color={colors.accent} size={16} strokeWidth={2.7} />
+            </View>
+            <Text numberOfLines={1} style={styles.countText}>Project directory</Text>
+          </View>
+          <Text style={styles.countMuted}>{listData.length} {listData.length === 1 ? "project" : "projects"}</Text>
+        </View>
+      )}
+    </View>
+  );
 
   return (
-    <>
+    <SafeAreaView edges={["top"]} style={styles.safe}>
       <FlatList
-        ListEmptyComponent={!loading && !error ? <ProjectsEmpty onCreate={() => setCreatingProject(true)} /> : null}
-        ListFooterComponent={<View style={styles.bottomSpacer} />}
-        ListHeaderComponent={(
-          <View style={styles.headerStack}>
-            <View style={styles.header}>
-              <View style={styles.titleWrap}>
-                <Text style={styles.eyebrow}>Projects</Text>
-                <Text style={styles.title}>Delivery portfolio</Text>
-              </View>
-              <Pressable accessibilityRole="button" onPress={() => setCreatingProject(true)} style={styles.addButton}>
-                <Plus color={colors.black} size={20} strokeWidth={2.8} />
-              </Pressable>
-            </View>
-
-            <View style={styles.summaryGrid}>
-              <SummaryTile label="Total" value={summary.total} />
-              <SummaryTile label="Active" value={summary.active} />
-              <SummaryTile label="Planning" value={summary.planning} />
-            </View>
-
-            <View style={styles.filters}>
-              <Field
-                label="Search"
-                leftAccessory={<Search color={colors.inkSoft} size={18} />}
-                onChangeText={setSearch}
-                placeholder="Project, key, client"
-                value={search}
-              />
-              <ProjectSelector
-                label="Status"
-                onChange={setStatus}
-                options={[{ label: "All", value: allStatuses }, ...projectStatuses.map((item) => ({ label: humanize(item), value: item }))]}
-                value={status}
-              />
-            </View>
-
-            {loading ? (
-              <View style={styles.loading}>
-                <ActivityIndicator color={colors.foreground} />
-                <Text style={styles.muted}>Loading projects</Text>
-              </View>
-            ) : error ? (
-              <View style={styles.errorBox}>
-                <Text style={styles.errorText}>{error}</Text>
-                <Button label="Retry" onPress={() => void load()} variant="outline" />
-              </View>
-            ) : null}
-          </View>
-        )}
-        ItemSeparatorComponent={ProjectSeparator}
+        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+        ListEmptyComponent={!loading && !error ? <EmptyState onCreate={() => setCreatingProject(true)} /> : null}
+        ListFooterComponent={<View style={{ height: 120 }} />}
+        ListHeaderComponent={ListHeader}
         contentContainerStyle={styles.content}
-        data={data}
-        keyExtractor={(project) => project.id}
+        data={listData}
+        keyExtractor={(p) => p.id}
         onRefresh={() => void load(true)}
         refreshing={refreshing}
         renderItem={({ item }) => (
-          <ProjectCard
-            project={item}
-            onPress={() => router.push({ pathname: "/(workspace)/projects/[projectId]", params: { projectId: item.id } })}
-          />
+          <ProjectCard onPress={() => openProject(item)} project={item} />
         )}
         showsVerticalScrollIndicator={false}
-        style={styles.safe}
+        style={styles.list}
       />
       <ProjectCreateModal
         onClose={() => setCreatingProject(false)}
@@ -137,146 +185,264 @@ export default function ProjectsScreen() {
         }}
         visible={creatingProject}
       />
-    </>
+    </SafeAreaView>
   );
 }
 
-function ProjectsEmpty({ onCreate }: { onCreate: () => void }) {
+// ── Project Card ─────────────────────────────────────────────────────────────
+
+function ProjectCard({ onPress, project }: { onPress: () => void; project: Project }) {
+  const swatch = statusSwatch(project.status);
+  const iconTint = statusIconTint(project.status);
+  const health = projectHealth(project);
+  const progress = Math.min(Math.max(project.progress ?? 0, 0), 100);
+  const meta = summarizeProject(project).replaceAll(" - ", " · ");
+
   return (
-    <View style={styles.empty}>
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.card, { borderTopColor: swatch }, pressed && { opacity: 0.7 }]}
+    >
+      {/* Top row */}
+      <View style={styles.cardTop}>
+        <View style={[styles.cardIcon, { backgroundColor: iconTint }]}>
+          <FolderKanban color={swatch} size={18} strokeWidth={2.5} />
+        </View>
+        <View style={styles.cardTitleBlock}>
+          <Text numberOfLines={1} style={styles.cardTitle}>{project.name}</Text>
+          <Text numberOfLines={1} style={styles.cardMeta}>{project.key} · {meta}</Text>
+        </View>
+        <ArrowRight color={colors.inkSoft} size={18} strokeWidth={2.5} />
+      </View>
+
+      {/* Description */}
+      {project.description ? (
+        <Text numberOfLines={2} style={styles.cardDesc}>{project.description.trim()}</Text>
+      ) : null}
+
+      {/* Progress bar */}
+      <View style={styles.progressRow}>
+        <View style={styles.progressTrack}>
+          <View style={{ flex: progress, height: 6, backgroundColor: swatch, borderRadius: 99 }} />
+          <View style={{ flex: 100 - progress, height: 6 }} />
+        </View>
+        <Text style={styles.progressPct}>{progress}%</Text>
+      </View>
+
+      {/* Footer */}
+      <View style={styles.cardFooter}>
+        <View style={styles.dateRow}>
+          <CalendarDays color={colors.inkSoft} size={13} strokeWidth={2.5} />
+          <Text style={styles.dateText}>{formatDate(project.dueDate)}</Text>
+        </View>
+        <View style={styles.pillRow}>
+          <StatusPill label={humanize(project.status)} tone={statusTone(project.status)} />
+          <StatusPill label={health.label} tone={health.tone} />
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+
+function EmptyState({ onCreate }: { onCreate: () => void }) {
+  return (
+    <View style={styles.emptyCard}>
+      <View style={styles.emptyIcon}>
+        <FolderKanban color={colors.accent} size={28} strokeWidth={2.5} />
+      </View>
       <Text style={styles.emptyTitle}>No projects found</Text>
-      <Text style={styles.muted}>Create a project or adjust the filter.</Text>
-      <Button label="Create project" onPress={onCreate} rightIcon={<Plus color={colors.black} size={16} />} />
+      <Text style={styles.emptyMeta}>Create a project or adjust the filters.</Text>
+      <Pressable accessibilityRole="button" onPress={onCreate} style={styles.emptyBtn}>
+        <Plus color={colors.black} size={17} strokeWidth={3} />
+        <Text style={styles.emptyBtnText}>New project</Text>
+      </Pressable>
     </View>
   );
 }
 
-function ProjectSeparator() {
-  return <View style={styles.projectSeparator} />;
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function statusSwatch(status?: string | null): string {
+  if (status === "ACTIVE") return colors.success;
+  if (status === "PLANNING") return colors.accent;
+  if (status === "ON_HOLD") return colors.warning;
+  if (status === "COMPLETED") return "#475569";
+  return "#94a3b8";
 }
 
-function SummaryTile({ label, value }: { label: string; value: number }) {
-  return (
-    <View style={styles.summaryTile}>
-      <Text style={styles.summaryValue}>{value}</Text>
-      <Text style={styles.summaryLabel}>{label}</Text>
-    </View>
-  );
+function statusIconTint(status?: string | null): string {
+  if (status === "ACTIVE") return colors.greenSoft;
+  if (status === "PLANNING") return colors.blueSoft;
+  if (status === "ON_HOLD") return colors.orangeSoft;
+  return colors.panelMuted;
 }
 
-const styles = StyleSheet.create({
-  addButton: {
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create(withFontStyles({
+  safe: { backgroundColor: colors.background, flex: 1 },
+  list: { backgroundColor: colors.background, flex: 1 },
+  content: { paddingHorizontal: 20, paddingTop: 16 },
+
+  // Header
+  headerStack: { gap: 14, paddingBottom: 14 },
+  titleRow: { alignItems: "center", flexDirection: "row", gap: 14 },
+  titleBlock: { flex: 1, minWidth: 0 },
+  title: { color: colors.foreground, fontSize: 28, fontWeight: "900", letterSpacing: -0.5 },
+  subtitle: { color: colors.inkSoft, fontSize: 13, fontWeight: "700", marginTop: 3 },
+  addBtn: {
     alignItems: "center",
     backgroundColor: colors.primary,
-    borderColor: colors.primaryDark,
     borderRadius: radii.lg,
-    borderWidth: 1,
-    height: 44,
+    height: 48,
     justifyContent: "center",
-    width: 44,
+    width: 48,
+    shadowColor: colors.primaryDark,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 6,
   },
-  content: {
-    padding: 20,
+
+  // Search
+  searchBar: {
+    alignItems: "center",
+    backgroundColor: colors.panel,
+    borderColor: colors.line,
+    borderRadius: radii["2xl"],
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    minHeight: 52,
+    paddingHorizontal: 18,
+    ...shadow.card,
   },
-  bottomSpacer: {
-    height: 112,
+  searchInput: { color: colors.foreground, flex: 1, fontSize: 15, fontWeight: "700" },
+  searchClear: { padding: 4 },
+  searchClearText: { color: colors.inkSoft, fontSize: 14, fontWeight: "900" },
+
+  // Filter chips
+  chipRail: { gap: 8, paddingRight: 4 },
+  chip: {
+    backgroundColor: colors.panel,
+    borderColor: colors.line,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
   },
-  empty: {
+  chipActive: { backgroundColor: colors.foreground, borderColor: colors.foreground },
+  chipText: { color: colors.inkSoft, fontSize: 13, fontWeight: "800" },
+  chipTextActive: { color: colors.white },
+
+  // Loading / error
+  loadingCard: {
     alignItems: "center",
     backgroundColor: colors.panel,
     borderColor: colors.line,
     borderRadius: radii.xl,
     borderWidth: 1,
-    gap: 12,
-    padding: 20,
+    gap: 14,
+    padding: 40,
+    ...shadow.card,
   },
-  emptyTitle: {
-    color: colors.foreground,
-    fontSize: 18,
-    fontWeight: "900",
-  },
+  loadingText: { color: colors.inkSoft, fontSize: 14, fontWeight: "700" },
   errorBox: {
+    alignItems: "center",
     backgroundColor: colors.redSoft,
     borderColor: "#fecaca",
     borderRadius: radii.xl,
     borderWidth: 1,
-    gap: 12,
-    padding: 14,
+    gap: 10,
+    padding: 20,
   },
-  errorText: {
-    color: colors.danger,
-    fontSize: 13,
-    fontWeight: "800",
-    lineHeight: 18,
-  },
-  eyebrow: {
-    color: colors.primaryDark,
-    fontSize: 11,
-    fontWeight: "900",
-    textTransform: "uppercase",
-  },
-  filters: {
+  errorText: { color: colors.danger, fontSize: 13, fontWeight: "800", textAlign: "center" },
+  retryBtn: { backgroundColor: colors.panel, borderRadius: radii.md, paddingHorizontal: 20, paddingVertical: 10 },
+  retryText: { color: colors.accent, fontSize: 14, fontWeight: "900" },
+
+  // Count label
+  countRow: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", paddingTop: 2 },
+  countTitleRow: { alignItems: "center", flex: 1, flexDirection: "row", gap: 10, minWidth: 0 },
+  countIconWrap: { alignItems: "center", backgroundColor: colors.blueSoft, borderRadius: radii.md, height: 34, justifyContent: "center", width: 34 },
+  countText: { color: colors.foreground, flexShrink: 1, fontSize: 17, fontWeight: "900", letterSpacing: -0.1 },
+  countMuted: { color: colors.inkSoft, fontSize: 12, fontWeight: "700" },
+
+  // Project card
+  card: {
+    backgroundColor: colors.panel,
+    borderColor: colors.line,
+    borderRadius: radii.xl,
+    borderTopWidth: 4,
+    borderWidth: 1,
     gap: 14,
+    padding: 16,
+    ...shadow.card,
   },
-  header: {
+  cardTop: { alignItems: "center", flexDirection: "row", gap: 12 },
+  cardIcon: {
     alignItems: "center",
-    flexDirection: "row",
-    gap: 12,
+    borderRadius: radii.md,
+    height: 42,
+    justifyContent: "center",
+    width: 42,
   },
-  headerStack: {
-    gap: 20,
-    marginBottom: 12,
-  },
-  loading: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 10,
-    paddingVertical: 18,
-  },
-  muted: {
-    color: colors.inkSoft,
-    fontSize: 13,
-    fontWeight: "700",
-    lineHeight: 19,
-  },
-  safe: {
-    backgroundColor: colors.background,
+  cardTitleBlock: { flex: 1, minWidth: 0 },
+  cardTitle: { color: colors.foreground, fontSize: 16, fontWeight: "900" },
+  cardMeta: { color: colors.inkSoft, fontSize: 12, fontWeight: "700", marginTop: 3 },
+  cardDesc: { color: colors.inkSoft, fontSize: 13, fontWeight: "700", lineHeight: 19 },
+
+  // Progress
+  progressRow: { alignItems: "center", flexDirection: "row", gap: 10 },
+  progressTrack: {
+    backgroundColor: colors.line,
+    borderRadius: 99,
     flex: 1,
-  },
-  projectSeparator: {
-    height: 12,
-  },
-  summaryGrid: {
     flexDirection: "row",
-    gap: 10,
+    height: 6,
+    overflow: "hidden",
   },
-  summaryLabel: {
-    color: colors.inkSoft,
-    fontSize: 11,
-    fontWeight: "900",
-    textTransform: "uppercase",
-  },
-  summaryTile: {
+  progressPct: { color: colors.inkSoft, fontSize: 12, fontWeight: "800", width: 34 },
+
+  // Card footer
+  cardFooter: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
+  dateRow: { alignItems: "center", flexDirection: "row", gap: 5 },
+  dateText: { color: colors.inkSoft, fontSize: 12, fontWeight: "700" },
+  pillRow: { alignItems: "center", flexDirection: "row", gap: 6 },
+
+  // Empty state
+  emptyCard: {
+    alignItems: "center",
     backgroundColor: colors.panel,
     borderColor: colors.line,
     borderRadius: radii.xl,
     borderWidth: 1,
-    flex: 1,
-    gap: 2,
-    padding: 14,
+    gap: 10,
+    padding: 48,
+    ...shadow.card,
   },
-  summaryValue: {
-    color: colors.foreground,
-    fontSize: 24,
-    fontWeight: "900",
+  emptyIcon: {
+    alignItems: "center",
+    backgroundColor: colors.blueSoft,
+    borderRadius: radii.lg,
+    height: 60,
+    justifyContent: "center",
+    marginBottom: 6,
+    width: 60,
   },
-  title: {
-    color: colors.foreground,
-    fontSize: 28,
-    fontWeight: "900",
-    letterSpacing: 0,
+  emptyTitle: { color: colors.foreground, fontSize: 18, fontWeight: "900" },
+  emptyMeta: { color: colors.inkSoft, fontSize: 13, fontWeight: "700", textAlign: "center" },
+  emptyBtn: {
+    alignItems: "center",
+    backgroundColor: colors.primary,
+    borderRadius: radii.lg,
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 13,
   },
-  titleWrap: {
-    flex: 1,
-  },
-});
+  emptyBtnText: { color: colors.black, fontSize: 14, fontWeight: "900" },
+}));

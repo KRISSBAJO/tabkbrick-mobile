@@ -112,43 +112,123 @@ export default function LoginScreen() {
     }
   }
 
+  const shellTitle = mfaChallenge
+    ? "Verify sign-in"
+    : mode === "password"
+    ? "Welcome back"
+    : mode === "forgot"
+    ? "Reset password"
+    : "Resend email";
+
+  const shellSubtitle = mfaChallenge
+    ? "Enter the code from your authenticator app"
+    : mode === "password"
+    ? "Sign in to your workspace"
+    : mode === "forgot"
+    ? "We'll send a reset link to your inbox"
+    : "Get a new verification email";
+
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.keyboard}>
-      <AuthShell
-        title={mfaChallenge ? "Verify sign-in" : mode === "password" ? "Welcome back" : mode === "forgot" ? "Forgot password?" : "Resend verification"}
-      >
+      <AuthShell title={shellTitle} subtitle={shellSubtitle}>
+
         {mfaChallenge ? (
           <View style={styles.stack}>
-            <View style={styles.mfaPanel}>
-              <View style={styles.mfaBadge}>
-                <ShieldCheck color={colors.black} size={20} />
+            {/* MFA card */}
+            <View style={styles.mfaCard}>
+              <View style={styles.mfaIconBox}>
+                <ShieldCheck color={colors.black} size={22} strokeWidth={2.6} />
               </View>
-              <View style={styles.flex}>
-                <Text style={styles.panelTitle}>Multi-factor verification</Text>
-                <Text style={styles.panelText}>{mfaChallenge.message}</Text>
+              <View style={styles.mfaCopy}>
+                <Text style={styles.mfaCardTitle}>Multi-factor verification</Text>
+                <Text style={styles.mfaCardText}>{mfaChallenge.message}</Text>
               </View>
             </View>
-            <Field label="Verification code" value={mfaCode} onChangeText={setMfaCode} keyboardType="number-pad" placeholder="123456" />
-            {error ? <Message text={error} tone="error" /> : null}
-            <Button label="Verify and sign in" loading={loading} onPress={submitMfa} rightIcon={<ShieldCheck color={colors.black} size={16} />} />
-            <TextButton label="Back to password login" onPress={cancelMfa} />
+
+            <Field
+              label="Verification code"
+              value={mfaCode}
+              onChangeText={setMfaCode}
+              keyboardType="number-pad"
+              placeholder="6-digit code"
+            />
+
+            {error ? <StatusMessage text={error} tone="error" /> : null}
+
+            <Button
+              label="Verify and sign in"
+              loading={loading}
+              onPress={submitMfa}
+              rightIcon={<ShieldCheck color={colors.black} size={16} />}
+            />
+            <LinkButton label="Back to password login" onPress={cancelMfa} />
           </View>
+
         ) : mode === "password" ? (
           <View style={styles.stack}>
-            <AuthFields
-              email={email}
-              onEmailChange={setEmail}
-              onPasswordChange={setPassword}
-              onPasswordVisibleChange={setPasswordVisible}
-              onTenantChange={setTenantSlug}
-              password={password}
-              passwordVisible={passwordVisible}
-              tenantSlug={tenantSlug}
-              onForgot={() => setMode("forgot")}
+            {/* Credential fields */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldGroupLabel}>Credentials</Text>
+              <View style={styles.fields}>
+                <Field
+                  label="Workspace"
+                  value={tenantSlug}
+                  onChangeText={setTenantSlug}
+                  placeholder="your-workspace"
+                  leftAccessory={<Text style={styles.atIcon}>@</Text>}
+                />
+                <View style={styles.fieldDivider} />
+                <Field
+                  label="Email address"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  placeholder="you@company.com"
+                  leftAccessory={<Mail color={colors.inkSoft} size={18} strokeWidth={2.3} />}
+                />
+                <View style={styles.fieldDivider} />
+                <Field
+                  label="Password"
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="············"
+                  secureTextEntry={!passwordVisible}
+                  leftAccessory={<KeyRound color={colors.inkSoft} size={18} strokeWidth={2.3} />}
+                  labelRight={<LinkButton compact label="Forgot?" onPress={() => setMode("forgot")} />}
+                  rightAccessory={(
+                    <Pressable
+                      accessibilityLabel={passwordVisible ? "Hide password" : "Show password"}
+                      accessibilityRole="button"
+                      hitSlop={8}
+                      onPress={() => setPasswordVisible((v) => !v)}
+                      style={styles.eyeBtn}
+                    >
+                      {passwordVisible
+                        ? <EyeOff color={colors.inkSoft} size={20} strokeWidth={2.4} />
+                        : <Eye color={colors.inkSoft} size={20} strokeWidth={2.4} />}
+                    </Pressable>
+                  )}
+                />
+              </View>
+            </View>
+
+            {error ? <StatusMessage text={error} tone="error" /> : null}
+            {notice ? <StatusMessage text={notice} tone="success" /> : null}
+
+            <Button
+              label="Sign in"
+              loading={loading}
+              onPress={submitPassword}
+              rightIcon={<ArrowRight color={colors.black} size={16} strokeWidth={2.8} />}
             />
-            {error ? <Message text={error} tone="error" /> : null}
-            {notice ? <Message text={notice} tone="success" /> : null}
-            <Button label="Sign in" loading={loading} onPress={submitPassword} rightIcon={<ArrowRight color={colors.black} size={16} strokeWidth={2.8} />} />
+
+            {/* SSO divider */}
+            <View style={styles.orRow}>
+              <View style={styles.orLine} />
+              <Text style={styles.orText}>or</Text>
+              <View style={styles.orLine} />
+            </View>
+
             <SsoPanel
               loading={ssoLoading}
               onFind={findSso}
@@ -156,105 +236,61 @@ export default function LoginScreen() {
               providers={ssoProviders}
               required={ssoRequired}
             />
-            <View style={styles.footerLinks}>
-              <InlineLink leading="New workspace?" label="Create account" onPress={() => router.push("/signup")} />
-              <TextButton label="Resend verification email" onPress={() => setMode("resend")} />
+
+            {/* Footer */}
+            <View style={styles.footer}>
+              <View style={styles.footerRow}>
+                <Text style={styles.footerMuted}>New to TaskBricks?</Text>
+                <LinkButton compact label="Create workspace" onPress={() => router.push("/signup")} />
+              </View>
+              <LinkButton label="Resend verification email" onPress={() => setMode("resend")} />
             </View>
           </View>
+
         ) : (
+          /* Forgot / resend mode */
           <View style={styles.stack}>
-            <Field
-              label="Workspace"
-              value={tenantSlug}
-              onChangeText={setTenantSlug}
-              placeholder="demo"
-              leftAccessory={<Text style={styles.atIcon}>@</Text>}
-            />
-            <Field
-              label="Email address"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              placeholder="admin@taskbricks.local"
-              leftAccessory={<Mail color={colors.inkSoft} size={18} strokeWidth={2.3} />}
-            />
-            {error ? <Message text={error} tone="error" /> : null}
-            {notice ? <Message text={notice} tone="success" /> : null}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldGroupLabel}>Your details</Text>
+              <View style={styles.fields}>
+                <Field
+                  label="Workspace"
+                  value={tenantSlug}
+                  onChangeText={setTenantSlug}
+                  placeholder="your-workspace"
+                  leftAccessory={<Text style={styles.atIcon}>@</Text>}
+                />
+                <View style={styles.fieldDivider} />
+                <Field
+                  label="Email address"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  placeholder="you@company.com"
+                  leftAccessory={<Mail color={colors.inkSoft} size={18} strokeWidth={2.3} />}
+                />
+              </View>
+            </View>
+
+            {error ? <StatusMessage text={error} tone="error" /> : null}
+            {notice ? <StatusMessage text={notice} tone="success" /> : null}
+
             <Button
-              label={mode === "forgot" ? "Send recovery link" : "Resend verification"}
+              label={mode === "forgot" ? "Send reset link" : "Resend verification"}
               loading={loading}
               onPress={submitRecovery}
               rightIcon={<ArrowRight color={colors.black} size={16} strokeWidth={2.8} />}
             />
-            <TextButton label="Back to sign in" onPress={() => setMode("password")} />
+            <LinkButton label="Back to sign in" onPress={() => setMode("password")} />
           </View>
         )}
+
       </AuthShell>
     </KeyboardAvoidingView>
   );
 }
 
-type AuthFieldsProps = {
-  email: string;
-  onEmailChange: (value: string) => void;
-  onForgot: () => void;
-  onPasswordChange: (value: string) => void;
-  onPasswordVisibleChange: (value: boolean | ((visible: boolean) => boolean)) => void;
-  onTenantChange: (value: string) => void;
-  password: string;
-  passwordVisible: boolean;
-  tenantSlug: string;
-};
-
-function AuthFields({
-  email,
-  onEmailChange,
-  onForgot,
-  onPasswordChange,
-  onPasswordVisibleChange,
-  onTenantChange,
-  password,
-  passwordVisible,
-  tenantSlug,
-}: AuthFieldsProps) {
-  return (
-    <>
-      <Field label="Workspace" value={tenantSlug} onChangeText={onTenantChange} placeholder="demo" leftAccessory={<Text style={styles.atIcon}>@</Text>} />
-      <Field
-        label="Email address"
-        value={email}
-        onChangeText={onEmailChange}
-        keyboardType="email-address"
-        placeholder="admin@taskbricks.local"
-        leftAccessory={<Mail color={colors.inkSoft} size={18} strokeWidth={2.3} />}
-      />
-      <Field
-        label="Password"
-        value={password}
-        onChangeText={onPasswordChange}
-        placeholder="************"
-        secureTextEntry={!passwordVisible}
-        leftAccessory={<KeyRound color={colors.inkSoft} size={18} strokeWidth={2.3} />}
-        labelRight={<TextButton compact label="Forgot?" onPress={onForgot} />}
-        rightAccessory={(
-          <Pressable
-            accessibilityLabel={passwordVisible ? "Hide password" : "Show password"}
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={() => onPasswordVisibleChange((visible) => !visible)}
-            style={styles.passwordToggle}
-          >
-            {passwordVisible ? (
-              <EyeOff color={colors.inkSoft} size={20} strokeWidth={2.4} />
-            ) : (
-              <Eye color={colors.inkSoft} size={20} strokeWidth={2.4} />
-            )}
-          </Pressable>
-        )}
-      />
-    </>
-  );
-}
+// ─── Sub-components ──────────────────────────────────────────────────────────
 
 function SsoPanel({
   loading,
@@ -270,15 +306,17 @@ function SsoPanel({
   required: boolean;
 }) {
   return (
-    <View style={styles.ssoPanel}>
+    <View style={styles.ssoStack}>
       <Button
-        label="Find SSO"
+        label="Find SSO provider"
         loading={loading}
         onPress={onFind}
-        leftIcon={<ShieldCheck color={colors.black} size={15} strokeWidth={2.5} />}
+        leftIcon={<ShieldCheck color={colors.foreground} size={15} strokeWidth={2.5} />}
         variant="outline"
       />
-      {required ? <Message text="This workspace requires SSO. Use one of the providers below." tone="success" /> : null}
+      {required ? (
+        <StatusMessage text="This workspace requires SSO. Use one of the providers below." tone="success" />
+      ) : null}
       {providers.map((provider) => (
         <Button
           key={provider.id}
@@ -292,30 +330,23 @@ function SsoPanel({
   );
 }
 
-function Message({ text, tone }: { text: string; tone: "error" | "success" }) {
+function StatusMessage({ text, tone }: { text: string; tone: "error" | "success" }) {
   return (
-    <View style={[styles.message, tone === "error" ? styles.errorMessage : styles.successMessage]}>
-      <Text style={[styles.messageText, tone === "error" ? styles.errorText : styles.successText]}>{text}</Text>
+    <View style={[styles.message, tone === "error" ? styles.errorMsg : styles.successMsg]}>
+      <Text style={[styles.messageText, tone === "error" ? styles.errorTxt : styles.successTxt]}>{text}</Text>
     </View>
   );
 }
 
-function TextButton({ compact = false, label, onPress }: { compact?: boolean; label: string; onPress: () => void }) {
+function LinkButton({ compact = false, label, onPress }: { compact?: boolean; label: string; onPress: () => void }) {
   return (
     <Pressable accessibilityRole="button" hitSlop={8} onPress={onPress}>
-      <Text style={[styles.textButton, compact ? styles.textButtonCompact : null]}>{label}</Text>
+      <Text style={[styles.linkBtn, compact ? styles.linkBtnCompact : null]}>{label}</Text>
     </Pressable>
   );
 }
 
-function InlineLink({ label, leading, onPress }: { label: string; leading: string; onPress: () => void }) {
-  return (
-    <View style={styles.inlineLink}>
-      <Text style={styles.inlineLeading}>{leading}</Text>
-      <TextButton compact label={label} onPress={onPress} />
-    </View>
-  );
-}
+// ─── Styles ──────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   atIcon: {
@@ -323,100 +354,140 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "900",
   },
-  errorMessage: {
+  errorMsg: {
     backgroundColor: colors.redSoft,
     borderColor: "#fecaca",
   },
-  errorText: {
+  errorTxt: {
     color: colors.danger,
   },
-  flex: {
-    flex: 1,
-  },
-  footerLinks: {
+  eyeBtn: {
     alignItems: "center",
-    gap: 14,
-    paddingTop: 12,
+    height: 44,
+    justifyContent: "center",
+    width: 44,
   },
-  inlineLeading: {
+  fieldDivider: {
+    backgroundColor: colors.line,
+    height: 1,
+    marginHorizontal: 4,
+  },
+  fieldGroup: {
+    gap: 10,
+  },
+  fieldGroupLabel: {
     color: colors.inkSoft,
-    fontSize: 14,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.6,
+    marginLeft: 2,
+    textTransform: "uppercase",
+  },
+  fields: {
+    backgroundColor: colors.panel,
+    borderColor: colors.line,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    gap: 14,
+    padding: 14,
+  },
+  footer: {
+    alignItems: "center",
+    gap: 12,
+    paddingTop: 4,
+  },
+  footerMuted: {
+    color: colors.inkSoft,
+    fontSize: 13,
     fontWeight: "700",
   },
-  inlineLink: {
+  footerRow: {
     alignItems: "center",
     flexDirection: "row",
-    gap: 4,
+    gap: 5,
   },
   keyboard: {
     flex: 1,
   },
-  message: {
-    borderRadius: radii.md,
-    borderWidth: 1,
-    padding: 12,
-  },
-  messageText: {
-    fontSize: 13,
-    fontWeight: "800",
-    lineHeight: 18,
-  },
-  mfaBadge: {
-    alignItems: "center",
-    backgroundColor: colors.primary,
-    borderRadius: radii.md,
-    height: 44,
-    justifyContent: "center",
-    width: 44,
-  },
-  mfaPanel: {
-    alignItems: "center",
-    backgroundColor: colors.white,
-    borderColor: colors.line,
-    borderRadius: radii.xl,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: 12,
-    padding: 14,
-  },
-  panelText: {
-    color: colors.inkSoft,
-    fontSize: 12,
-    fontWeight: "700",
-    lineHeight: 18,
-  },
-  panelTitle: {
-    color: colors.foreground,
-    fontSize: 14,
-    fontWeight: "900",
-  },
-  passwordToggle: {
-    alignItems: "center",
-    height: 44,
-    justifyContent: "center",
-    width: 44,
-  },
-  ssoPanel: {
-    gap: 12,
-    paddingTop: 2,
-  },
-  stack: {
-    gap: 20,
-  },
-  successMessage: {
-    backgroundColor: colors.greenSoft,
-    borderColor: "#bbf7d0",
-  },
-  successText: {
-    color: colors.success,
-  },
-  textButton: {
+  linkBtn: {
     color: colors.foreground,
     fontSize: 13,
     fontWeight: "900",
     textDecorationLine: "underline",
   },
-  textButtonCompact: {
+  linkBtnCompact: {
     fontSize: 12,
+  },
+  message: {
+    borderRadius: radii.md,
+    borderWidth: 1,
+    padding: 13,
+  },
+  messageText: {
+    fontSize: 13,
+    fontWeight: "800",
+    lineHeight: 19,
+  },
+  mfaCard: {
+    alignItems: "center",
+    backgroundColor: colors.panel,
+    borderColor: colors.line,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 14,
+    padding: 16,
+  },
+  mfaCardText: {
+    color: colors.inkSoft,
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 18,
+  },
+  mfaCardTitle: {
+    color: colors.foreground,
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  mfaCopy: {
+    flex: 1,
+    gap: 3,
+  },
+  mfaIconBox: {
+    alignItems: "center",
+    backgroundColor: colors.primary,
+    borderRadius: radii.md,
+    height: 46,
+    justifyContent: "center",
+    width: 46,
+  },
+  orLine: {
+    backgroundColor: colors.line,
+    flex: 1,
+    height: 1,
+  },
+  orRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 12,
+  },
+  orText: {
+    color: colors.inkSoft,
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  ssoStack: {
+    gap: 12,
+  },
+  stack: {
+    gap: 22,
+  },
+  successMsg: {
+    backgroundColor: colors.greenSoft,
+    borderColor: "#bbf7d0",
+  },
+  successTxt: {
+    color: colors.success,
   },
 });

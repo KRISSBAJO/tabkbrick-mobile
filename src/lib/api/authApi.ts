@@ -7,6 +7,8 @@ export type ForgotPasswordPayload = OpenApiJsonBody<"/api/v1/auth/forgot-passwor
 export type ResendVerificationPayload = OpenApiJsonBody<"/api/v1/auth/resend-verification", "post">;
 export type RefreshPayload = OpenApiJsonBody<"/api/v1/auth/refresh", "post">;
 export type LogoutPayload = OpenApiJsonBody<"/api/v1/auth/logout", "post">;
+export type UpdateMyProfilePayload = OpenApiJsonBody<"/api/v1/users/me/profile", "patch">;
+export type ChangePasswordPayload = OpenApiJsonBody<"/api/v1/auth/change-password", "post">;
 
 export function login(payload: LoginPayload) {
   return openApiRequest("/api/v1/auth/login", "post", {
@@ -79,5 +81,21 @@ export function getMe(token: string) {
     token,
     cache: "no-store",
     pathParams: {},
+  });
+}
+
+export function updateMyProfile(token: string, payload: UpdateMyProfilePayload) {
+  return openApiRequest("/api/v1/users/me/profile", "patch", {
+    token,
+    pathParams: {},
+    body: payload,
+  });
+}
+
+export function changePassword(token: string, payload: ChangePasswordPayload) {
+  return openApiRequest("/api/v1/auth/change-password", "post", {
+    token,
+    pathParams: {},
+    body: payload,
   });
 }

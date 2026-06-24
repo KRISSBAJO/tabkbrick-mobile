@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
-import { ArrowLeft, CheckCircle2, Pencil, Plus, Trash2 } from "lucide-react-native";
+import { AlertTriangle, ArrowLeft, CalendarDays, CheckCircle2, Clock3, FolderKanban, ListChecks, Pencil, Plus, Trash2, UsersRound } from "lucide-react-native";
 import { Button } from "@/components/ui/Button";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { ProjectEditModal } from "@/features/projects/ProjectEditModal";
@@ -15,6 +16,7 @@ import {
   formatDate,
   humanize,
   isOverdue,
+  projectHealth,
   statusTone,
 } from "@/features/projects/projectFormat";
 import { createDraftFromProject, toUpdateProjectPayload } from "@/features/projects/projectPayload";
@@ -57,7 +59,8 @@ import {
   updateProjectStakeholder,
 } from "@/lib/api";
 import { useAuthSession } from "@/lib/auth/AuthSessionProvider";
-import { colors, radii } from "@/lib/theme/tokens";
+import { withFontStyles } from "@/lib/theme/fontDefaults";
+import { colors, radii, shadow } from "@/lib/theme/tokens";
 import type {
   Project,
   ProjectBudget,
@@ -89,9 +92,10 @@ const sections: { label: string; value: Section }[] = [
 ];
 
 export default function ProjectDetailScreen() {
-  const { projectId: rawProjectId } = useLocalSearchParams<{ projectId: string }>();
-  const projectId = Array.isArray(rawProjectId) ? rawProjectId[0] : rawProjectId;
+  const { projectId: raw } = useLocalSearchParams<{ projectId: string }>();
+  const projectId = Array.isArray(raw) ? raw[0] : raw;
   const { accessToken } = useAuthSession();
+
   const [project, setProject] = useState<Project | null>(null);
   const [permissions, setPermissions] = useState<ProjectPermissionMatrix | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -125,19 +129,9 @@ export default function ProjectDetailScreen() {
     setError("");
     try {
       const [
-        nextProject,
-        nextPermissions,
-        taskPage,
-        nextMembers,
-        nextMilestones,
-        nextRisks,
-        nextBudgets,
-        nextStakeholders,
-        nextDependencies,
-        nextDecisions,
-        nextChangeRequests,
-        workspacePage,
-        teamPage,
+        nextProject, nextPermissions, taskPage, nextMembers, nextMilestones,
+        nextRisks, nextBudgets, nextStakeholders, nextDependencies,
+        nextDecisions, nextChangeRequests, workspacePage, teamPage,
       ] = await Promise.all([
         getProject(accessToken, projectId),
         safe(getProjectPermissions(accessToken, projectId), null),
@@ -153,7 +147,6 @@ export default function ProjectDetailScreen() {
         safe(listWorkspaces(accessToken, { limit: 50 }), { data: [], limit: 50, page: 1, total: 0, totalPages: 0 }),
         safe(listTeams(accessToken, { limit: 50 }), { data: [], limit: 50, page: 1, total: 0, totalPages: 0 }),
       ]);
-
       setProject(nextProject);
       setPermissions(nextPermissions);
       setTasks(Array.isArray(taskPage) ? taskPage : taskPage.data);
@@ -176,16 +169,12 @@ export default function ProjectDetailScreen() {
     }
   }, [accessToken, projectId]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
-  const summaryItems = useMemo(() => [
-    { label: "Tasks", value: countOpenTasks(tasks) },
-    { label: "Risks", value: countOpenRisks(risks) },
-    { label: "Late", value: milestones.filter((milestone) => !milestone.completedAt && isOverdue(milestone.dueDate)).length },
-    { label: "People", value: stakeholders.length + members.length },
-  ], [members.length, milestones, risks, stakeholders.length, tasks]);
+  const lateMilestones = useMemo(
+    () => milestones.filter((m) => !m.completedAt && isOverdue(m.dueDate)).length,
+    [milestones],
+  );
 
   async function saveOverview() {
     if (!accessToken || !project || !draft) return;
@@ -220,78 +209,25 @@ export default function ProjectDetailScreen() {
     if (!accessToken || !project) return;
     const id = project.id;
     if (kind === "milestone") {
-      const title = required(values.title);
-      await createProjectMilestone(accessToken, id, {
-        description: optional(values.description),
-        dueDate: optional(values.dueDate),
-        title,
-      });
+      await createProjectMilestone(accessToken, id, { description: opt(values.description), dueDate: opt(values.dueDate), title: req(values.title) });
     } else if (kind === "risk") {
-      const title = required(values.title);
-      await createProjectRisk(accessToken, id, {
-        description: optional(values.description),
-        isOpen: true,
-        mitigation: optional(values.mitigation),
-        severity: optional(values.severity) as "LOW" | "MEDIUM" | "HIGH" | "URGENT" | "CRITICAL" | undefined,
-        title,
-      });
+      await createProjectRisk(accessToken, id, { description: opt(values.description), isOpen: true, mitigation: opt(values.mitigation), severity: opt(values.severity) as "LOW" | "MEDIUM" | "HIGH" | "URGENT" | "CRITICAL" | undefined, title: req(values.title) });
     } else if (kind === "budget") {
-      await createProjectBudget(accessToken, id, {
-        actual: optionalNumber(values.actual),
-        currency: optional(values.currency),
-        notes: optional(values.notes),
-        planned: optionalNumber(values.planned),
-      });
+      await createProjectBudget(accessToken, id, { actual: optNum(values.actual), currency: opt(values.currency), notes: opt(values.notes), planned: optNum(values.planned) });
     } else if (kind === "stakeholder") {
-      const name = required(values.name, "Name is required.");
-      await createProjectStakeholder(accessToken, id, {
-        email: optional(values.email),
-        influence: optional(values.influence) as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | undefined,
-        isExternal: true,
-        name,
-        notes: optional(values.notes),
-        organization: optional(values.organization),
-        role: optional(values.role),
-      });
+      await createProjectStakeholder(accessToken, id, { email: opt(values.email), influence: opt(values.influence) as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | undefined, isExternal: true, name: req(values.name, "Name is required."), notes: opt(values.notes), organization: opt(values.organization), role: opt(values.role) });
     } else if (kind === "dependency") {
-      const title = required(values.title);
-      await createProjectDependency(accessToken, id, {
-        dependencyType: optional(values.dependencyType),
-        description: optional(values.description),
-        dueDate: optional(values.dueDate),
-        ownerName: optional(values.ownerName),
-        status: optional(values.status) as "OPEN" | "BLOCKED" | "RESOLVED" | "CANCELLED" | undefined,
-        title,
-      });
+      await createProjectDependency(accessToken, id, { dependencyType: opt(values.dependencyType), description: opt(values.description), dueDate: opt(values.dueDate), ownerName: opt(values.ownerName), status: opt(values.status) as "OPEN" | "BLOCKED" | "RESOLVED" | "CANCELLED" | undefined, title: req(values.title) });
     } else if (kind === "decision") {
-      const title = required(values.title);
-      await createProjectDecision(accessToken, id, {
-        description: optional(values.description),
-        outcome: optional(values.outcome),
-        ownerName: optional(values.ownerName),
-        status: optional(values.status) as "PROPOSED" | "DECIDED" | "SUPERSEDED" | "REOPENED" | undefined,
-        title,
-      });
+      await createProjectDecision(accessToken, id, { description: opt(values.description), outcome: opt(values.outcome), ownerName: opt(values.ownerName), status: opt(values.status) as "PROPOSED" | "DECIDED" | "SUPERSEDED" | "REOPENED" | undefined, title: req(values.title) });
     } else {
-      const title = required(values.title);
-      await createProjectChangeRequest(accessToken, id, {
-        budgetImpact: optionalNumber(values.budgetImpact),
-        description: optional(values.description),
-        dueDate: optional(values.dueDate),
-        reason: optional(values.reason),
-        scheduleImpactDays: optionalInteger(values.scheduleImpactDays),
-        status: optional(values.status) as "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED" | "IMPLEMENTED" | "CANCELLED" | undefined,
-        title,
-      });
+      await createProjectChangeRequest(accessToken, id, { budgetImpact: optNum(values.budgetImpact), description: opt(values.description), dueDate: opt(values.dueDate), reason: opt(values.reason), scheduleImpactDays: optInt(values.scheduleImpactDays), status: opt(values.status) as "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED" | "IMPLEMENTED" | "CANCELLED" | undefined, title: req(values.title) });
     }
     await load(true);
   }
 
   async function saveRecord(kind: ProjectRecordKind, values: ProjectRecordValues) {
-    if (!recordModal || recordModal.mode === "create") {
-      await createRecord(kind, values);
-      return;
-    }
+    if (!recordModal || recordModal.mode === "create") { await createRecord(kind, values); return; }
     await updateRecord(kind, recordModal.id, values);
   }
 
@@ -299,338 +235,371 @@ export default function ProjectDetailScreen() {
     if (!accessToken || !project) return;
     const id = project.id;
     if (kind === "milestone") {
-      await updateProjectMilestone(accessToken, id, recordId, {
-        description: optional(values.description),
-        dueDate: optional(values.dueDate),
-        title: optional(values.title),
-      });
+      await updateProjectMilestone(accessToken, id, recordId, { description: opt(values.description), dueDate: opt(values.dueDate), title: opt(values.title) });
     } else if (kind === "risk") {
-      await updateProjectRisk(accessToken, id, recordId, {
-        description: optional(values.description),
-        mitigation: optional(values.mitigation),
-        severity: optional(values.severity) as "LOW" | "MEDIUM" | "HIGH" | "URGENT" | "CRITICAL" | undefined,
-        title: optional(values.title),
-      });
+      await updateProjectRisk(accessToken, id, recordId, { description: opt(values.description), mitigation: opt(values.mitigation), severity: opt(values.severity) as "LOW" | "MEDIUM" | "HIGH" | "URGENT" | "CRITICAL" | undefined, title: opt(values.title) });
     } else if (kind === "budget") {
-      await updateProjectBudget(accessToken, id, recordId, {
-        actual: optionalNumber(values.actual),
-        currency: optional(values.currency),
-        notes: optional(values.notes),
-        planned: optionalNumber(values.planned),
-      });
+      await updateProjectBudget(accessToken, id, recordId, { actual: optNum(values.actual), currency: opt(values.currency), notes: opt(values.notes), planned: optNum(values.planned) });
     } else if (kind === "stakeholder") {
-      await updateProjectStakeholder(accessToken, id, recordId, {
-        email: optional(values.email),
-        influence: optional(values.influence) as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | undefined,
-        isExternal: true,
-        name: optional(values.name),
-        notes: optional(values.notes),
-        organization: optional(values.organization),
-        role: optional(values.role),
-      });
+      await updateProjectStakeholder(accessToken, id, recordId, { email: opt(values.email), influence: opt(values.influence) as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | undefined, isExternal: true, name: opt(values.name), notes: opt(values.notes), organization: opt(values.organization), role: opt(values.role) });
     } else if (kind === "dependency") {
-      await updateProjectDependency(accessToken, id, recordId, {
-        dependencyType: optional(values.dependencyType),
-        description: optional(values.description),
-        dueDate: optional(values.dueDate),
-        ownerName: optional(values.ownerName),
-        status: optional(values.status) as "OPEN" | "BLOCKED" | "RESOLVED" | "CANCELLED" | undefined,
-        title: optional(values.title),
-      });
+      await updateProjectDependency(accessToken, id, recordId, { dependencyType: opt(values.dependencyType), description: opt(values.description), dueDate: opt(values.dueDate), ownerName: opt(values.ownerName), status: opt(values.status) as "OPEN" | "BLOCKED" | "RESOLVED" | "CANCELLED" | undefined, title: opt(values.title) });
     } else if (kind === "decision") {
-      await updateProjectDecision(accessToken, id, recordId, {
-        description: optional(values.description),
-        outcome: optional(values.outcome),
-        ownerName: optional(values.ownerName),
-        status: optional(values.status) as "PROPOSED" | "DECIDED" | "SUPERSEDED" | "REOPENED" | undefined,
-        title: optional(values.title),
-      });
+      await updateProjectDecision(accessToken, id, recordId, { description: opt(values.description), outcome: opt(values.outcome), ownerName: opt(values.ownerName), status: opt(values.status) as "PROPOSED" | "DECIDED" | "SUPERSEDED" | "REOPENED" | undefined, title: opt(values.title) });
     } else {
-      await updateProjectChangeRequest(accessToken, id, recordId, {
-        budgetImpact: optionalNumber(values.budgetImpact),
-        description: optional(values.description),
-        dueDate: optional(values.dueDate),
-        reason: optional(values.reason),
-        scheduleImpactDays: optionalInteger(values.scheduleImpactDays),
-        status: optional(values.status) as "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED" | "IMPLEMENTED" | "CANCELLED" | undefined,
-        title: optional(values.title),
-      });
+      await updateProjectChangeRequest(accessToken, id, recordId, { budgetImpact: optNum(values.budgetImpact), description: opt(values.description), dueDate: opt(values.dueDate), reason: opt(values.reason), scheduleImpactDays: optInt(values.scheduleImpactDays), status: opt(values.status) as "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED" | "IMPLEMENTED" | "CANCELLED" | undefined, title: opt(values.title) });
     }
     await load(true);
   }
 
-  function openCreate(kind: ProjectRecordKind) {
-    setRecordModal({ kind, mode: "create" });
-  }
-
-  function openEdit(kind: ProjectRecordKind, id: string, values: ProjectRecordValues) {
-    setRecordModal({ id, kind, mode: "edit", values });
-  }
-
   function confirmDeleteProject() {
     if (!accessToken || !project) return;
-    Alert.alert("Delete project?", "Only empty projects can be deleted by the backend.", [
+    Alert.alert("Delete project?", "Only empty projects can be deleted.", [
       { style: "cancel", text: "Cancel" },
-      {
-        onPress: () => {
-          void deleteProject(accessToken, project.id)
-            .then(() => router.replace("/(workspace)/projects"))
-            .catch((caught) => setError(caught instanceof Error ? caught.message : "Unable to delete project."));
-        },
-        style: "destructive",
-        text: "Delete",
-      },
+      { onPress: () => void deleteProject(accessToken, project.id).then(() => router.replace("/(workspace)/projects")).catch((e) => setError(e instanceof Error ? e.message : "Unable to delete.")), style: "destructive", text: "Delete" },
     ]);
   }
 
   function confirmDelete(label: string, run: () => Promise<unknown>) {
     Alert.alert(`Delete ${label}?`, "This cannot be undone.", [
       { style: "cancel", text: "Cancel" },
-      {
-        onPress: () => {
-          void run().then(() => load(true)).catch((caught) => setError(caught instanceof Error ? caught.message : "Unable to delete item."));
-        },
-        style: "destructive",
-        text: "Delete",
-      },
+      { onPress: () => void run().then(() => load(true)).catch((e) => setError(e instanceof Error ? e.message : "Unable to delete.")), style: "destructive", text: "Delete" },
     ]);
   }
 
+  // ── Loading ──
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color={colors.foreground} />
-        <Text style={styles.muted}>Loading project</Text>
-      </View>
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.center}>
+          <ActivityIndicator color={colors.accent} size="large" />
+          <Text style={styles.loadingText}>Loading project…</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
+  // ── Error (no project) ──
   if (error && !project) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.errorText}>{error}</Text>
-        <Button label="Back to projects" onPress={() => router.replace("/(workspace)/projects")} variant="outline" />
-      </View>
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.center}>
+          <Text style={styles.errorTitle}>Couldn't load project</Text>
+          <Text style={styles.errorBody}>{error}</Text>
+          <Button label="Back to projects" onPress={() => router.replace("/(workspace)/projects")} variant="outline" />
+        </View>
+      </SafeAreaView>
     );
   }
 
   if (!project) return null;
 
+  const swatch = statusSwatch(project.status);
+  const health = projectHealth(project);
+  const progress = Math.min(Math.max(project.progress ?? 0, 0), 100);
+  const openRisks = countOpenRisks(risks);
+  const openTasks = countOpenTasks(tasks);
+
   return (
     <>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={colors.foreground} />}
-        showsVerticalScrollIndicator={false}
-        style={styles.safe}
-      >
-        <View style={styles.header}>
-          <Pressable accessibilityRole="button" onPress={() => router.replace("/(workspace)/projects")} style={styles.backLink}>
-            <ArrowLeft color={colors.foreground} size={18} strokeWidth={2.7} />
-            <Text style={styles.backLinkText}>Projects</Text>
-          </Pressable>
-          {canEdit ? (
-            <Pressable accessibilityRole="button" onPress={openProjectEdit} style={styles.headerAction}>
-              <Pencil color={colors.foreground} size={16} strokeWidth={2.6} />
-              <Text style={styles.headerActionText}>Edit</Text>
+      <SafeAreaView style={styles.safe}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={colors.accent} />}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* ── NAV BAR ── */}
+          <View style={styles.navBar}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.replace("/(workspace)/projects")}
+              style={styles.navBack}
+            >
+              <ArrowLeft color={colors.foreground} size={18} strokeWidth={2.8} />
+              <Text style={styles.navBackText}>Projects</Text>
             </Pressable>
-          ) : null}
-        </View>
+            {canEdit && (
+              <Pressable accessibilityRole="button" onPress={openProjectEdit} style={styles.editBtn}>
+                <Pencil color={colors.foreground} size={14} strokeWidth={2.5} />
+                <Text style={styles.editBtnText}>Edit</Text>
+              </Pressable>
+            )}
+          </View>
 
-        <View style={styles.projectIntro}>
-          <View style={styles.projectTitleRow}>
-            <View style={styles.projectTitleWrap}>
-              <Text style={styles.eyebrow}>{project.key}</Text>
-              <Text style={styles.title}>{project.name}</Text>
+          {/* ── ERROR BANNER ── */}
+          {error ? (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorBoxText}>{error}</Text>
             </View>
-            <StatusPill label={humanize(project.status)} tone={statusTone(project.status)} />
-          </View>
-          {project.description ? <Text style={styles.description}>{project.description}</Text> : null}
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${Math.min(Math.max(project.progress, 0), 100)}%` }]} />
-          </View>
-          <View style={styles.projectMetaLine}>
-            <Text style={styles.projectMetaText}>{project.progress}% complete</Text>
-            <Text style={styles.projectMetaText}>Due {formatDate(project.dueDate)}</Text>
-          </View>
-          <ProjectSummary items={summaryItems} />
-        </View>
+          ) : null}
 
-        {error ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        ) : null}
-
-        <SectionTabs onChange={setSection} value={section} />
-
-        {section === "overview" && draft ? (
-          <View style={styles.section}>
-            <SectionHeader
-              action={canEdit ? "Edit" : undefined}
-              onAction={canEdit ? openProjectEdit : undefined}
-              title="Overview"
-            />
-            <Overview project={project} />
-            {canDelete ? (
-              <Button
-                label="Delete project"
-                leftIcon={<Trash2 color={colors.white} size={16} />}
-                onPress={confirmDeleteProject}
-                variant="dark"
-              />
+          {/* ── HERO CARD ── */}
+          <View style={[styles.heroCard, { borderTopColor: swatch }]}>
+            <View style={styles.heroPills}>
+              <StatusPill label={humanize(project.status)} tone={statusTone(project.status)} />
+              <StatusPill label={health.label} tone={health.tone} />
+            </View>
+            <View style={styles.heroKeyRow}>
+              <Text style={[styles.heroKey, { color: swatch }]}>{project.key}</Text>
+              {project.visibility ? (
+                <>
+                  <View style={styles.heroBullet} />
+                  <Text style={styles.heroVisibility}>{humanize(project.visibility)}</Text>
+                </>
+              ) : null}
+            </View>
+            <Text style={styles.heroTitle}>{project.name}</Text>
+            {project.description ? (
+              <Text style={styles.heroDesc}>{project.description}</Text>
             ) : null}
+            {/* Progress */}
+            <View style={styles.progressTrack}>
+              <View style={{ flex: progress, height: 8, backgroundColor: swatch, borderRadius: 99 }} />
+              <View style={{ flex: 100 - progress, height: 8 }} />
+            </View>
+            <View style={styles.progressMeta}>
+              <Text style={styles.progressLabel}>{progress}% complete</Text>
+              <View style={styles.progressDateRow}>
+                <CalendarDays color={colors.inkSoft} size={13} strokeWidth={2.5} />
+                <Text style={styles.progressLabel}>Due {formatDate(project.dueDate)}</Text>
+              </View>
+            </View>
           </View>
-        ) : null}
 
-        {section === "plan" ? (
-          <View style={styles.section}>
-            <SectionHeader onAction={canEdit ? () => openCreate("milestone") : undefined} title="Milestones" />
-            <RecordList empty="No milestones yet.">
-              {milestones.map((milestone) => (
-                <RecordRow
-                  key={milestone.id}
-                  actionLabel={milestone.completedAt ? "Reopen" : "Done"}
-                  meta={milestone.description || `Due ${formatDate(milestone.dueDate)}`}
-                  onAction={() => void updateProjectMilestone(accessToken ?? "", project.id, milestone.id, {
-                    completedAt: milestone.completedAt ? null : new Date().toISOString(),
-                  }).then(() => load(true))}
-                  onDelete={() => confirmDelete("milestone", () => deleteProjectMilestone(accessToken ?? "", project.id, milestone.id))}
-                  onEdit={canEdit ? () => openEdit("milestone", milestone.id, valuesFromMilestone(milestone)) : undefined}
-                  status={milestone.completedAt ? "COMPLETED" : isOverdue(milestone.dueDate) ? "OVERDUE" : "OPEN"}
-                  title={milestone.title}
-                />
-              ))}
-            </RecordList>
-            <SectionHeader title="Latest tasks" />
-            <RecordList empty="No tasks found for this project.">
-              {tasks.map((task) => (
-                <RecordRow
-                  key={task.id}
-                  meta={task.project?.name || task.type}
-                  status={task.status}
-                  title={task.title}
-                />
-              ))}
-            </RecordList>
+          {/* ── STATS GRID ── */}
+          <View style={styles.statsGrid}>
+            <StatCard
+              accent={colors.accent}
+              icon={<ListChecks color={colors.accent} size={20} strokeWidth={2.7} />}
+              label="Open Tasks"
+              tint={colors.blueSoft}
+              value={openTasks}
+            />
+            <StatCard
+              accent={openRisks > 0 ? colors.danger : colors.inkSoft}
+              icon={<AlertTriangle color={openRisks > 0 ? colors.danger : colors.inkSoft} size={20} strokeWidth={2.7} />}
+              label="Open Risks"
+              tint={openRisks > 0 ? colors.redSoft : colors.panelMuted}
+              value={openRisks}
+            />
+            <StatCard
+              accent={lateMilestones > 0 ? colors.warning : colors.inkSoft}
+              icon={<Clock3 color={lateMilestones > 0 ? colors.warning : colors.inkSoft} size={20} strokeWidth={2.7} />}
+              label="Late"
+              tint={lateMilestones > 0 ? colors.orangeSoft : colors.panelMuted}
+              value={lateMilestones}
+            />
+            <StatCard
+              accent={colors.success}
+              icon={<UsersRound color={colors.success} size={20} strokeWidth={2.7} />}
+              label="Team"
+              tint={colors.greenSoft}
+              value={stakeholders.length + members.length}
+            />
           </View>
-        ) : null}
 
-        {section === "risk" ? (
-          <View style={styles.section}>
-            <SectionHeader onAction={canEdit ? () => openCreate("risk") : undefined} title="Risks" />
-            <RecordList empty="No risks recorded.">
-              {risks.map((risk) => (
-                <RecordRow
-                  key={risk.id}
-                  actionLabel={risk.isOpen ? "Close" : "Open"}
-                  meta={risk.description || risk.mitigation || "No details"}
-                  onAction={() => void updateProjectRisk(accessToken ?? "", project.id, risk.id, { isOpen: !risk.isOpen }).then(() => load(true))}
-                  onDelete={() => confirmDelete("risk", () => deleteProjectRisk(accessToken ?? "", project.id, risk.id))}
-                  onEdit={canEdit ? () => openEdit("risk", risk.id, valuesFromRisk(risk)) : undefined}
-                  status={risk.isOpen ? risk.severity || "OPEN" : "CLOSED"}
-                  title={risk.title}
-                />
-              ))}
-            </RecordList>
-            <SectionHeader onAction={canEdit ? () => openCreate("dependency") : undefined} title="Dependencies" />
-            <RecordList empty="No dependencies recorded.">
-              {dependencies.map((dependency) => (
-                <RecordRow
-                  key={dependency.id}
-                  actionLabel={dependency.status === "RESOLVED" ? "Reopen" : "Resolve"}
-                  meta={dependency.description || dependency.dependencyType || `Due ${formatDate(dependency.dueDate)}`}
-                  onAction={() => void updateProjectDependency(accessToken ?? "", project.id, dependency.id, {
-                    status: dependency.status === "RESOLVED" ? "OPEN" : "RESOLVED",
-                  }).then(() => load(true))}
-                  onDelete={() => confirmDelete("dependency", () => deleteProjectDependency(accessToken ?? "", project.id, dependency.id))}
-                  onEdit={canEdit ? () => openEdit("dependency", dependency.id, valuesFromDependency(dependency)) : undefined}
-                  status={dependency.status}
-                  title={dependency.title}
-                />
-              ))}
-            </RecordList>
-          </View>
-        ) : null}
+          {/* ── SECTION TABS ── */}
+          <ScrollView contentContainerStyle={styles.tabRail} horizontal showsHorizontalScrollIndicator={false}>
+            {sections.map((s) => {
+              const active = s.value === section;
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  key={s.value}
+                  onPress={() => setSection(s.value)}
+                  style={[styles.tabChip, active && styles.tabChipActive]}
+                >
+                  <Text style={[styles.tabChipText, active && styles.tabChipTextActive]}>{s.label}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
 
-        {section === "people" ? (
-          <View style={styles.section}>
-            <SectionHeader title="Members" />
-            <RecordList empty="No project members listed.">
-              {members.map((member) => (
-                <RecordRow
-                  key={member.id}
-                  meta={member.user.email}
-                  status={member.role || "Member"}
-                  title={`${member.user.firstName} ${member.user.lastName}`.trim() || member.user.email}
+          {/* ── OVERVIEW ── */}
+          {section === "overview" && (
+            <View style={styles.sectionBlock}>
+              <SectionCard icon={<FolderKanban color={colors.accent} size={16} strokeWidth={2.6} />} title="Project details" onAdd={undefined}>
+                <OverviewGrid project={project} />
+              </SectionCard>
+              {canDelete && (
+                <Button
+                  label="Delete project"
+                  leftIcon={<Trash2 color={colors.white} size={16} />}
+                  onPress={confirmDeleteProject}
+                  variant="dark"
                 />
-              ))}
-            </RecordList>
-            <SectionHeader onAction={canEdit ? () => openCreate("stakeholder") : undefined} title="Stakeholders" />
-            <RecordList empty="No stakeholders recorded.">
-              {stakeholders.map((stakeholder) => (
-                <RecordRow
-                  key={stakeholder.id}
-                  meta={[stakeholder.role, stakeholder.organization, stakeholder.email].filter(Boolean).join(" - ") || "Stakeholder"}
-                  onDelete={() => confirmDelete("stakeholder", () => deleteProjectStakeholder(accessToken ?? "", project.id, stakeholder.id))}
-                  onEdit={canEdit ? () => openEdit("stakeholder", stakeholder.id, valuesFromStakeholder(stakeholder)) : undefined}
-                  status={stakeholder.influence}
-                  title={stakeholder.name}
-                />
-              ))}
-            </RecordList>
-          </View>
-        ) : null}
+              )}
+            </View>
+          )}
 
-        {section === "finance" ? (
-          <View style={styles.section}>
-            <SectionHeader onAction={canEdit ? () => openCreate("budget") : undefined} title="Budgets" />
-            <RecordList empty="No budgets recorded or you do not have budget access.">
-              {budgets.map((budget) => (
-                <RecordRow
-                  key={budget.id}
-                  meta={`Planned ${formatCurrency(budget.planned, budget.currency ?? project.currency ?? "USD")} - Actual ${formatCurrency(budget.actual, budget.currency ?? project.currency ?? "USD")}`}
-                  onDelete={() => confirmDelete("budget", () => deleteProjectBudget(accessToken ?? "", project.id, budget.id))}
-                  onEdit={canEdit ? () => openEdit("budget", budget.id, valuesFromBudget(budget)) : undefined}
-                  status={budget.currency || project.currency || "Budget"}
-                  title={budget.notes || "Project budget"}
-                />
-              ))}
-            </RecordList>
-          </View>
-        ) : null}
+          {/* ── PLAN ── */}
+          {section === "plan" && (
+            <View style={styles.sectionBlock}>
+              <SectionCard icon={<CalendarDays color={colors.accent} size={16} strokeWidth={2.6} />} title="Milestones" onAdd={canEdit ? () => setRecordModal({ kind: "milestone", mode: "create" }) : undefined}>
+                {milestones.length ? (
+                  milestones.map((m, idx) => (
+                    <RecordCard
+                      key={m.id}
+                      actionLabel={m.completedAt ? "Reopen" : "Done"}
+                      isLast={idx === milestones.length - 1}
+                      meta={m.description || `Due ${formatDate(m.dueDate)}`}
+                      onAction={() => void updateProjectMilestone(accessToken ?? "", project.id, m.id, { completedAt: m.completedAt ? null : new Date().toISOString() }).then(() => load(true))}
+                      onDelete={() => confirmDelete("milestone", () => deleteProjectMilestone(accessToken ?? "", project.id, m.id))}
+                      onEdit={canEdit ? () => setRecordModal({ id: m.id, kind: "milestone", mode: "edit", values: { description: tv(m.description), dueDate: tv(m.dueDate), title: tv(m.title) } }) : undefined}
+                      status={m.completedAt ? "COMPLETED" : isOverdue(m.dueDate) ? "OVERDUE" : "OPEN"}
+                      title={m.title}
+                    />
+                  ))
+                ) : <EmptySection label="No milestones yet." />}
+              </SectionCard>
+              <SectionCard icon={<ListChecks color={colors.accent} size={16} strokeWidth={2.6} />} title="Latest tasks" onAdd={undefined}>
+                {tasks.length ? (
+                  tasks.map((t, idx) => (
+                    <RecordCard
+                      key={t.id}
+                      isLast={idx === tasks.length - 1}
+                      meta={t.project?.name || t.type}
+                      status={t.status}
+                      title={t.title}
+                    />
+                  ))
+                ) : <EmptySection label="No tasks found for this project." />}
+              </SectionCard>
+            </View>
+          )}
 
-        {section === "changes" ? (
-          <View style={styles.section}>
-            <SectionHeader onAction={canEdit ? () => openCreate("decision") : undefined} title="Decisions" />
-            <RecordList empty="No decisions recorded.">
-              {decisions.map((decision) => (
-                <RecordRow
-                  key={decision.id}
-                  meta={decision.outcome || decision.description || "No outcome yet"}
-                  onDelete={() => confirmDelete("decision", () => deleteProjectDecision(accessToken ?? "", project.id, decision.id))}
-                  onEdit={canEdit ? () => openEdit("decision", decision.id, valuesFromDecision(decision)) : undefined}
-                  status={decision.status}
-                  title={decision.title}
-                />
-              ))}
-            </RecordList>
-            <SectionHeader onAction={canEdit ? () => openCreate("changeRequest") : undefined} title="Change requests" />
-            <RecordList empty="No change requests recorded.">
-              {changeRequests.map((request) => (
-                <RecordRow
-                  key={request.id}
-                  meta={request.reason || request.description || "No reason supplied"}
-                  onDelete={() => confirmDelete("change request", () => deleteProjectChangeRequest(accessToken ?? "", project.id, request.id))}
-                  onEdit={canEdit ? () => openEdit("changeRequest", request.id, valuesFromChangeRequest(request)) : undefined}
-                  status={request.status}
-                  title={request.title}
-                />
-              ))}
-            </RecordList>
-          </View>
-        ) : null}
-      </ScrollView>
+          {/* ── RISK ── */}
+          {section === "risk" && (
+            <View style={styles.sectionBlock}>
+              <SectionCard icon={<AlertTriangle color={colors.warning} size={16} strokeWidth={2.6} />} title="Risks" onAdd={canEdit ? () => setRecordModal({ kind: "risk", mode: "create" }) : undefined}>
+                {risks.length ? (
+                  risks.map((r, idx) => (
+                    <RecordCard
+                      key={r.id}
+                      actionLabel={r.isOpen ? "Close" : "Open"}
+                      isLast={idx === risks.length - 1}
+                      meta={r.description || r.mitigation || "No details"}
+                      onAction={() => void updateProjectRisk(accessToken ?? "", project.id, r.id, { isOpen: !r.isOpen }).then(() => load(true))}
+                      onDelete={() => confirmDelete("risk", () => deleteProjectRisk(accessToken ?? "", project.id, r.id))}
+                      onEdit={canEdit ? () => setRecordModal({ id: r.id, kind: "risk", mode: "edit", values: { description: tv(r.description), mitigation: tv(r.mitigation), severity: tv(r.severity || "MEDIUM"), title: tv(r.title) } }) : undefined}
+                      status={r.isOpen ? r.severity || "OPEN" : "CLOSED"}
+                      title={r.title}
+                    />
+                  ))
+                ) : <EmptySection label="No risks recorded." />}
+              </SectionCard>
+              <SectionCard icon={<Clock3 color={colors.accent} size={16} strokeWidth={2.6} />} title="Dependencies" onAdd={canEdit ? () => setRecordModal({ kind: "dependency", mode: "create" }) : undefined}>
+                {dependencies.length ? (
+                  dependencies.map((d, idx) => (
+                    <RecordCard
+                      key={d.id}
+                      actionLabel={d.status === "RESOLVED" ? "Reopen" : "Resolve"}
+                      isLast={idx === dependencies.length - 1}
+                      meta={d.description || d.dependencyType || `Due ${formatDate(d.dueDate)}`}
+                      onAction={() => void updateProjectDependency(accessToken ?? "", project.id, d.id, { status: d.status === "RESOLVED" ? "OPEN" : "RESOLVED" }).then(() => load(true))}
+                      onDelete={() => confirmDelete("dependency", () => deleteProjectDependency(accessToken ?? "", project.id, d.id))}
+                      onEdit={canEdit ? () => setRecordModal({ id: d.id, kind: "dependency", mode: "edit", values: { dependencyType: tv(d.dependencyType), description: tv(d.description), dueDate: tv(d.dueDate), ownerName: tv(d.ownerName), status: tv(d.status || "OPEN"), title: tv(d.title) } }) : undefined}
+                      status={d.status}
+                      title={d.title}
+                    />
+                  ))
+                ) : <EmptySection label="No dependencies recorded." />}
+              </SectionCard>
+            </View>
+          )}
+
+          {/* ── PEOPLE ── */}
+          {section === "people" && (
+            <View style={styles.sectionBlock}>
+              <SectionCard icon={<UsersRound color={colors.accent} size={16} strokeWidth={2.6} />} title="Members" onAdd={undefined}>
+                {members.length ? (
+                  members.map((m, idx) => (
+                    <RecordCard
+                      key={m.id}
+                      isLast={idx === members.length - 1}
+                      meta={m.user.email}
+                      status={m.role || "Member"}
+                      title={`${m.user.firstName ?? ""} ${m.user.lastName ?? ""}`.trim() || m.user.email}
+                    />
+                  ))
+                ) : <EmptySection label="No project members listed." />}
+              </SectionCard>
+              <SectionCard icon={<UsersRound color={colors.accent} size={16} strokeWidth={2.6} />} title="Stakeholders" onAdd={canEdit ? () => setRecordModal({ kind: "stakeholder", mode: "create" }) : undefined}>
+                {stakeholders.length ? (
+                  stakeholders.map((s, idx) => (
+                    <RecordCard
+                      key={s.id}
+                      isLast={idx === stakeholders.length - 1}
+                      meta={[s.role, s.organization, s.email].filter(Boolean).join(" · ") || "Stakeholder"}
+                      onDelete={() => confirmDelete("stakeholder", () => deleteProjectStakeholder(accessToken ?? "", project.id, s.id))}
+                      onEdit={canEdit ? () => setRecordModal({ id: s.id, kind: "stakeholder", mode: "edit", values: { email: tv(s.email), influence: tv(s.influence || "MEDIUM"), name: tv(s.name), notes: tv(s.notes), organization: tv(s.organization), role: tv(s.role) } }) : undefined}
+                      status={s.influence}
+                      title={s.name}
+                    />
+                  ))
+                ) : <EmptySection label="No stakeholders recorded." />}
+              </SectionCard>
+            </View>
+          )}
+
+          {/* ── FINANCE ── */}
+          {section === "finance" && (
+            <View style={styles.sectionBlock}>
+              <SectionCard icon={<CheckCircle2 color={colors.success} size={16} strokeWidth={2.6} />} title="Budgets" onAdd={canEdit ? () => setRecordModal({ kind: "budget", mode: "create" }) : undefined}>
+                {budgets.length ? (
+                  budgets.map((b, idx) => (
+                    <RecordCard
+                      key={b.id}
+                      isLast={idx === budgets.length - 1}
+                      meta={`Planned ${formatCurrency(b.planned, b.currency ?? project.currency ?? "USD")} · Actual ${formatCurrency(b.actual, b.currency ?? project.currency ?? "USD")}`}
+                      onDelete={() => confirmDelete("budget", () => deleteProjectBudget(accessToken ?? "", project.id, b.id))}
+                      onEdit={canEdit ? () => setRecordModal({ id: b.id, kind: "budget", mode: "edit", values: { actual: tv(b.actual), currency: tv(b.currency || "USD"), notes: tv(b.notes), planned: tv(b.planned) } }) : undefined}
+                      status={b.currency || project.currency || "Budget"}
+                      title={b.notes || "Project budget"}
+                    />
+                  ))
+                ) : <EmptySection label="No budgets recorded or you do not have budget access." />}
+              </SectionCard>
+            </View>
+          )}
+
+          {/* ── CHANGES ── */}
+          {section === "changes" && (
+            <View style={styles.sectionBlock}>
+              <SectionCard icon={<CheckCircle2 color={colors.accent} size={16} strokeWidth={2.6} />} title="Decisions" onAdd={canEdit ? () => setRecordModal({ kind: "decision", mode: "create" }) : undefined}>
+                {decisions.length ? (
+                  decisions.map((d, idx) => (
+                    <RecordCard
+                      key={d.id}
+                      isLast={idx === decisions.length - 1}
+                      meta={d.outcome || d.description || "No outcome yet"}
+                      onDelete={() => confirmDelete("decision", () => deleteProjectDecision(accessToken ?? "", project.id, d.id))}
+                      onEdit={canEdit ? () => setRecordModal({ id: d.id, kind: "decision", mode: "edit", values: { description: tv(d.description), outcome: tv(d.outcome), ownerName: tv(d.ownerName), status: tv(d.status || "PROPOSED"), title: tv(d.title) } }) : undefined}
+                      status={d.status}
+                      title={d.title}
+                    />
+                  ))
+                ) : <EmptySection label="No decisions recorded." />}
+              </SectionCard>
+              <SectionCard icon={<Pencil color={colors.accent} size={16} strokeWidth={2.6} />} title="Change requests" onAdd={canEdit ? () => setRecordModal({ kind: "changeRequest", mode: "create" }) : undefined}>
+                {changeRequests.length ? (
+                  changeRequests.map((cr, idx) => (
+                    <RecordCard
+                      key={cr.id}
+                      isLast={idx === changeRequests.length - 1}
+                      meta={cr.reason || cr.description || "No reason supplied"}
+                      onDelete={() => confirmDelete("change request", () => deleteProjectChangeRequest(accessToken ?? "", project.id, cr.id))}
+                      onEdit={canEdit ? () => setRecordModal({ id: cr.id, kind: "changeRequest", mode: "edit", values: { budgetImpact: tv(cr.budgetImpact), description: tv(cr.description), dueDate: tv(cr.dueDate), reason: tv(cr.reason), scheduleImpactDays: tv(cr.scheduleImpactDays), status: tv(cr.status || "DRAFT"), title: tv(cr.title) } }) : undefined}
+                      status={cr.status}
+                      title={cr.title}
+                    />
+                  ))
+                ) : <EmptySection label="No change requests recorded." />}
+              </SectionCard>
+            </View>
+          )}
+        </ScrollView>
+      </SafeAreaView>
 
       <ProjectRecordModal
         initialValues={recordModal?.mode === "edit" ? recordModal.values : undefined}
@@ -657,178 +626,48 @@ export default function ProjectDetailScreen() {
   );
 }
 
-async function safe<T>(promise: Promise<T>, fallback: T) {
-  try {
-    return await promise;
-  } catch {
-    return fallback;
-  }
-}
+// ── Sub-components ────────────────────────────────────────────────────────────
 
-function optional(value: string | undefined) {
-  const trimmed = value?.trim();
-  return trimmed || undefined;
-}
-
-function optionalNumber(value: string | undefined) {
-  const text = optional(value);
-  if (!text) return undefined;
-  const number = Number(text);
-  return Number.isFinite(number) ? number : undefined;
-}
-
-function optionalInteger(value: string | undefined) {
-  const number = optionalNumber(value);
-  return number === undefined ? undefined : Math.round(number);
-}
-
-function required(value: string | undefined, message = "Title is required.") {
-  const trimmed = value?.trim();
-  if (!trimmed) throw new Error(message);
-  return trimmed;
-}
-
-function valuesFromMilestone(milestone: ProjectMilestone): ProjectRecordValues {
-  return {
-    description: textValue(milestone.description),
-    dueDate: textValue(milestone.dueDate),
-    title: textValue(milestone.title),
-  };
-}
-
-function valuesFromRisk(risk: ProjectRisk): ProjectRecordValues {
-  return {
-    description: textValue(risk.description),
-    mitigation: textValue(risk.mitigation),
-    severity: textValue(risk.severity || "MEDIUM"),
-    title: textValue(risk.title),
-  };
-}
-
-function valuesFromBudget(budget: ProjectBudget): ProjectRecordValues {
-  return {
-    actual: textValue(budget.actual),
-    currency: textValue(budget.currency || "USD"),
-    notes: textValue(budget.notes),
-    planned: textValue(budget.planned),
-  };
-}
-
-function valuesFromStakeholder(stakeholder: ProjectStakeholder): ProjectRecordValues {
-  return {
-    email: textValue(stakeholder.email),
-    influence: textValue(stakeholder.influence || "MEDIUM"),
-    name: textValue(stakeholder.name),
-    notes: textValue(stakeholder.notes),
-    organization: textValue(stakeholder.organization),
-    role: textValue(stakeholder.role),
-  };
-}
-
-function valuesFromDependency(dependency: ProjectDependency): ProjectRecordValues {
-  return {
-    dependencyType: textValue(dependency.dependencyType),
-    description: textValue(dependency.description),
-    dueDate: textValue(dependency.dueDate),
-    ownerName: textValue(dependency.ownerName),
-    status: textValue(dependency.status || "OPEN"),
-    title: textValue(dependency.title),
-  };
-}
-
-function valuesFromDecision(decision: ProjectDecision): ProjectRecordValues {
-  return {
-    description: textValue(decision.description),
-    outcome: textValue(decision.outcome),
-    ownerName: textValue(decision.ownerName),
-    status: textValue(decision.status || "PROPOSED"),
-    title: textValue(decision.title),
-  };
-}
-
-function valuesFromChangeRequest(request: ProjectChangeRequest): ProjectRecordValues {
-  return {
-    budgetImpact: textValue(request.budgetImpact),
-    description: textValue(request.description),
-    dueDate: textValue(request.dueDate),
-    reason: textValue(request.reason),
-    scheduleImpactDays: textValue(request.scheduleImpactDays),
-    status: textValue(request.status || "DRAFT"),
-    title: textValue(request.title),
-  };
-}
-
-function textValue(value: unknown) {
-  if (value === null || value === undefined) return "";
-  return String(value);
-}
-
-function ProjectSummary({ items }: { items: { label: string; value: number }[] }) {
+function StatCard({ accent, icon, label, tint, value }: { accent: string; icon: ReactNode; label: string; tint: string; value: number }) {
   return (
-    <View style={styles.summaryLine}>
-      {items.map((item, index) => (
-        <View key={item.label} style={styles.summaryItem}>
-          {index > 0 ? <View style={styles.summaryDivider} /> : null}
-          <Text style={styles.summaryValue}>{item.value}</Text>
-          <Text style={styles.summaryLabel}>{item.label}</Text>
+    <View style={styles.statCard}>
+      <View style={[styles.statAccent, { backgroundColor: accent }]} />
+      <View style={styles.statContent}>
+        <View style={styles.statTopRow}>
+          <View style={[styles.statIcon, { backgroundColor: tint }]}>
+            {icon}
+          </View>
+          <Text style={[styles.statValue, { color: accent }]}>{value}</Text>
         </View>
-      ))}
-    </View>
-  );
-}
-
-function SectionTabs({ onChange, value }: { onChange: (value: Section) => void; value: Section }) {
-  return (
-    <View style={styles.tabsWrap}>
-      <Text style={styles.tabsLabel}>Management</Text>
-      <ScrollView contentContainerStyle={styles.tabsContent} horizontal showsHorizontalScrollIndicator={false}>
-        {sections.map((sectionItem) => {
-          const selected = sectionItem.value === value;
-          return (
-            <Pressable
-              accessibilityRole="button"
-              key={sectionItem.value}
-              onPress={() => onChange(sectionItem.value)}
-              style={[styles.tabButton, selected ? styles.tabButtonActive : null]}
-            >
-              <Text style={[styles.tabButtonText, selected ? styles.tabButtonTextActive : null]}>{sectionItem.label}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-    </View>
-  );
-}
-
-function SectionHeader({ action = "Add", onAction, title }: { action?: string; onAction?: () => void; title: string }) {
-  return (
-    <View style={styles.sectionHeader}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {onAction ? (
-        <Pressable accessibilityRole="button" onPress={onAction} style={styles.sectionAction}>
-          {action === "Add" ? <Plus color={colors.black} size={15} /> : <Pencil color={colors.black} size={14} />}
-          <Text style={styles.sectionActionText}>{action}</Text>
-        </Pressable>
-      ) : null}
-    </View>
-  );
-}
-
-function RecordList({ children, empty }: { children: ReactNode; empty: string }) {
-  const list = Array.isArray(children) ? children.filter(Boolean) : children ? [children] : [];
-  if (!list.length) {
-    return (
-      <View style={styles.emptyRow}>
-        <Text style={styles.muted}>{empty}</Text>
+        <Text numberOfLines={1} style={styles.statLabel}>{label}</Text>
       </View>
-    );
-  }
-
-  return <View style={styles.recordList}>{children}</View>;
+    </View>
+  );
 }
 
-function RecordRow({
+function SectionCard({ children, icon, onAdd, title }: { children: ReactNode; icon?: ReactNode; onAdd?: () => void; title: string }) {
+  return (
+    <View style={styles.sectionCard}>
+      <View style={styles.sectionCardHeader}>
+        <View style={styles.sectionCardIconRow}>
+          <View style={styles.sectionCardIcon}>{icon ?? <FolderKanban color={colors.accent} size={16} strokeWidth={2.5} />}</View>
+          <Text numberOfLines={1} style={styles.sectionCardTitle}>{title}</Text>
+        </View>
+        {onAdd && (
+          <Pressable accessibilityRole="button" onPress={onAdd} style={styles.sectionAddBtn}>
+            <Plus color={colors.black} size={14} strokeWidth={3} />
+            <Text style={styles.sectionAddBtnText}>Add</Text>
+          </Pressable>
+        )}
+      </View>
+      {children}
+    </View>
+  );
+}
+
+function RecordCard({
   actionLabel,
+  isLast,
   meta,
   onAction,
   onDelete,
@@ -837,6 +676,7 @@ function RecordRow({
   title,
 }: {
   actionLabel?: string;
+  isLast?: boolean;
   meta?: string | null;
   onAction?: () => void;
   onDelete?: () => void;
@@ -844,364 +684,259 @@ function RecordRow({
   status?: string | null;
   title: string;
 }) {
+  const hasActions = Boolean(onEdit || onAction || onDelete);
   return (
-    <View style={styles.recordRow}>
-      <View style={styles.recordText}>
+    <View style={[styles.recordCard, isLast && styles.recordCardLast]}>
+      <View style={styles.recordTopRow}>
         <Text numberOfLines={1} style={styles.recordTitle}>{title}</Text>
-        {meta ? <Text numberOfLines={2} style={styles.recordMeta}>{meta}</Text> : null}
-      </View>
-      <View style={styles.recordActions}>
         {status ? <StatusPill label={humanize(status)} tone={statusTone(status)} /> : null}
-        {onEdit ? (
-          <Pressable accessibilityRole="button" onPress={onEdit} style={styles.iconAction}>
-            <Pencil color={colors.accent} size={15} />
-            <Text style={[styles.iconActionText, styles.editActionText]}>Edit</Text>
-          </Pressable>
-        ) : null}
-        {onAction ? (
-          <Pressable accessibilityRole="button" onPress={onAction} style={styles.iconAction}>
-            <CheckCircle2 color={colors.success} size={17} />
-            <Text style={styles.iconActionText}>{actionLabel}</Text>
-          </Pressable>
-        ) : null}
-        {onDelete ? (
-          <Pressable accessibilityRole="button" onPress={onDelete} style={styles.deleteAction}>
-            <Trash2 color={colors.danger} size={16} />
-          </Pressable>
-        ) : null}
       </View>
+      {meta ? <Text numberOfLines={2} style={styles.recordMeta}>{meta}</Text> : null}
+      {hasActions && (
+        <View style={styles.recordActions}>
+          {onEdit && (
+            <Pressable accessibilityRole="button" onPress={onEdit} style={[styles.actionBtn, styles.actionBtnEdit]}>
+              <Pencil color={colors.accent} size={12} strokeWidth={2.5} />
+              <Text style={[styles.actionBtnText, { color: colors.accent }]}>Edit</Text>
+            </Pressable>
+          )}
+          {onAction && (
+            <Pressable accessibilityRole="button" onPress={onAction} style={[styles.actionBtn, styles.actionBtnDone]}>
+              <CheckCircle2 color={colors.success} size={13} strokeWidth={2.5} />
+              <Text style={[styles.actionBtnText, { color: colors.success }]}>{actionLabel}</Text>
+            </Pressable>
+          )}
+          <View style={styles.flex1} />
+          {onDelete && (
+            <Pressable accessibilityRole="button" onPress={onDelete} style={styles.deleteBtn}>
+              <Trash2 color={colors.danger} size={14} strokeWidth={2.5} />
+            </Pressable>
+          )}
+        </View>
+      )}
     </View>
   );
 }
 
-function Overview({ project }: { project: Project }) {
-  const rows = [
-    { label: "Workspace", value: project.workspace?.name || "Current workspace" },
-    { label: "Team", value: project.team?.name || "No team" },
-    { label: "Client", value: project.clientName || "No client" },
-    { label: "Contract", value: formatCurrency(project.contractValue, project.currency ?? "USD") },
-    { label: "Start", value: formatDate(project.startDate) },
-    { label: "Due", value: formatDate(project.dueDate) },
-    { label: "Visibility", value: humanize(project.visibility) },
-    { label: "Location", value: [project.locationName, project.city, project.country].filter(Boolean).join(", ") || "No location" },
+function EmptySection({ label }: { label: string }) {
+  return (
+    <View style={styles.emptySection}>
+      <Text style={styles.emptySectionText}>{label}</Text>
+    </View>
+  );
+}
+
+function OverviewGrid({ project }: { project: Project }) {
+  const pairs: [string, string][][] = [
+    [["Workspace", project.workspace?.name || "Current workspace"], ["Team", project.team?.name || "No team"]],
+    [["Client", project.clientName || "No client"], ["Contract", formatCurrency(project.contractValue, project.currency ?? "USD")]],
+    [["Start date", formatDate(project.startDate)], ["Due date", formatDate(project.dueDate)]],
+    [["Visibility", humanize(project.visibility)], ["Location", [project.locationName, project.city, project.country].filter(Boolean).join(", ") || "No location"]],
   ];
 
   return (
-    <View style={styles.overviewList}>
-      {rows.map((row, index) => (
-        <Info key={row.label} label={row.label} last={index === rows.length - 1} value={row.value} />
+    <View style={styles.overviewGrid}>
+      {pairs.map((row, rIdx) => (
+        <View key={rIdx} style={[styles.overviewRow, rIdx === pairs.length - 1 && { borderBottomWidth: 0 }]}>
+          {row.map(([label, value]) => (
+            <View key={label} style={styles.overviewCell}>
+              <Text style={styles.overviewLabel}>{label}</Text>
+              <Text numberOfLines={2} style={styles.overviewValue}>{value}</Text>
+            </View>
+          ))}
+        </View>
       ))}
     </View>
   );
 }
 
-function Info({ label, last, value }: { label: string; last: boolean; value: string }) {
-  return (
-    <View style={[styles.info, last ? styles.infoLast : null]}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text numberOfLines={2} style={styles.infoValue}>{value}</Text>
-    </View>
-  );
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+async function safe<T>(promise: Promise<T>, fallback: T): Promise<T> {
+  try { return await promise; } catch { return fallback; }
 }
 
-const styles = StyleSheet.create({
-  backLink: {
+function opt(v: string | undefined) { const t = v?.trim(); return t || undefined; }
+function optNum(v: string | undefined) { const t = opt(v); if (!t) return undefined; const n = Number(t); return Number.isFinite(n) ? n : undefined; }
+function optInt(v: string | undefined) { const n = optNum(v); return n === undefined ? undefined : Math.round(n); }
+function req(v: string | undefined, msg = "Title is required.") { const t = v?.trim(); if (!t) throw new Error(msg); return t; }
+function tv(v: unknown) { if (v === null || v === undefined) return ""; return String(v); }
+
+function statusSwatch(status?: string | null): string {
+  if (status === "ACTIVE") return colors.success;
+  if (status === "PLANNING") return colors.accent;
+  if (status === "ON_HOLD") return colors.warning;
+  if (status === "COMPLETED") return "#475569";
+  return "#94a3b8";
+}
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create(withFontStyles({
+  safe: { backgroundColor: colors.background, flex: 1 },
+  content: { gap: 16, padding: 20, paddingBottom: 120 },
+
+  // Loading / Error screens
+  center: { alignItems: "center", flex: 1, gap: 14, justifyContent: "center", padding: 32 },
+  loadingText: { color: colors.inkSoft, fontSize: 14, fontWeight: "700" },
+  errorTitle: { color: colors.danger, fontSize: 18, fontWeight: "900" },
+  errorBody: { color: colors.danger, fontSize: 13, fontWeight: "700", textAlign: "center" },
+
+  // Nav bar
+  navBar: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
+  navBack: {
     alignItems: "center",
+    backgroundColor: colors.panel,
+    borderColor: colors.line,
+    borderRadius: radii.lg,
+    borderWidth: 1,
     flexDirection: "row",
     gap: 7,
-    paddingVertical: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    ...shadow.card,
   },
-  backLinkText: {
-    color: colors.foreground,
-    fontSize: 14,
-    fontWeight: "900",
-  },
-  center: {
+  navBackText: { color: colors.foreground, fontSize: 14, fontWeight: "900" },
+  editBtn: {
     alignItems: "center",
-    backgroundColor: colors.background,
-    flex: 1,
-    gap: 12,
-    justifyContent: "center",
-    padding: 24,
-  },
-  content: {
-    gap: 24,
-    padding: 20,
-    paddingBottom: 112,
-  },
-  deleteAction: {
-    alignItems: "center",
-    backgroundColor: colors.redSoft,
-    borderRadius: radii.sm,
-    height: 34,
-    justifyContent: "center",
-    width: 34,
-  },
-  description: {
-    color: colors.inkSoft,
-    fontSize: 14,
-    fontWeight: "700",
-    lineHeight: 21,
-  },
-  emptyRow: {
-    borderTopColor: colors.line,
-    borderTopWidth: 1,
-    paddingVertical: 18,
-  },
-  editActionText: {
-    color: colors.accent,
-  },
-  errorBox: {
-    backgroundColor: colors.redSoft,
-    borderColor: "#fecaca",
-    borderRadius: radii.xl,
+    backgroundColor: colors.panel,
+    borderColor: colors.line,
+    borderRadius: 999,
     borderWidth: 1,
-    padding: 13,
-  },
-  errorText: {
-    color: colors.danger,
-    fontSize: 13,
-    fontWeight: "800",
-    lineHeight: 18,
-    textAlign: "center",
-  },
-  eyebrow: {
-    color: colors.accent,
-    fontSize: 12,
-    fontWeight: "900",
-    textTransform: "uppercase",
-  },
-  header: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  headerAction: {
-    alignItems: "center",
     flexDirection: "row",
     gap: 6,
-    paddingHorizontal: 2,
-    paddingVertical: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    ...shadow.card,
   },
-  headerActionText: {
-    color: colors.foreground,
-    fontSize: 14,
-    fontWeight: "900",
-  },
-  iconAction: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 4,
-    paddingVertical: 3,
-  },
-  iconActionText: {
-    color: colors.success,
-    fontSize: 11,
-    fontWeight: "900",
-  },
-  info: {
-    alignItems: "flex-start",
-    borderBottomColor: colors.line,
-    borderBottomWidth: 1,
-    flexDirection: "row",
-    gap: 18,
-    justifyContent: "space-between",
-    paddingVertical: 14,
-  },
-  infoLast: {
-    borderBottomWidth: 0,
-  },
-  infoLabel: {
-    color: colors.inkSoft,
-    fontSize: 11,
-    fontWeight: "900",
-    textTransform: "uppercase",
-  },
-  infoValue: {
-    color: colors.foreground,
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "900",
-    lineHeight: 19,
-    textAlign: "right",
-  },
-  muted: {
-    color: colors.inkSoft,
-    fontSize: 13,
-    fontWeight: "700",
-    lineHeight: 19,
-  },
-  overviewList: {
-    borderTopColor: colors.line,
-    borderTopWidth: 1,
-  },
-  progressFill: {
-    backgroundColor: colors.accent,
-    borderRadius: 99,
-    height: 5,
-  },
-  progressTrack: {
-    backgroundColor: colors.line,
-    borderRadius: 99,
-    height: 5,
-    overflow: "hidden",
-  },
-  projectIntro: {
-    gap: 14,
-  },
-  projectMetaLine: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  projectMetaText: {
-    color: colors.inkSoft,
-    fontSize: 12,
-    fontWeight: "900",
-    textTransform: "uppercase",
-  },
-  projectTitleRow: {
-    alignItems: "flex-start",
-    flexDirection: "row",
-    gap: 12,
-  },
-  projectTitleWrap: {
-    flex: 1,
-    minWidth: 0,
-  },
-  recordActions: {
-    alignItems: "flex-end",
-    gap: 7,
-  },
-  recordList: {
-    borderTopColor: colors.line,
-    borderTopWidth: 1,
-  },
-  recordMeta: {
-    color: colors.inkSoft,
-    fontSize: 12,
-    fontWeight: "700",
-    lineHeight: 17,
-    marginTop: 3,
-  },
-  recordRow: {
-    alignItems: "flex-start",
-    borderBottomColor: colors.line,
-    borderBottomWidth: 1,
-    flexDirection: "row",
-    gap: 14,
-    paddingVertical: 15,
-  },
-  recordText: {
-    flex: 1,
-    minWidth: 0,
-  },
-  recordTitle: {
-    color: colors.foreground,
-    fontSize: 14,
-    fontWeight: "900",
-  },
-  safe: {
-    backgroundColor: colors.background,
-    flex: 1,
-  },
-  section: {
-    gap: 14,
-  },
-  sectionAction: {
-    alignItems: "center",
+  editBtnText: { color: colors.foreground, fontSize: 13, fontWeight: "900" },
+
+  // Error banner
+  errorBox: { backgroundColor: colors.redSoft, borderColor: "#fecaca", borderRadius: radii.xl, borderWidth: 1, padding: 14 },
+  errorBoxText: { color: colors.danger, fontSize: 13, fontWeight: "800", lineHeight: 18 },
+
+  // Hero card
+  heroCard: {
     backgroundColor: colors.panel,
     borderColor: colors.line,
-    borderRadius: 999,
+    borderRadius: radii.xl,
+    borderTopWidth: 4,
     borderWidth: 1,
-    flexDirection: "row",
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    gap: 12,
+    padding: 20,
+    ...shadow.card,
   },
-  sectionActionText: {
-    color: colors.foreground,
-    fontSize: 12,
-    fontWeight: "900",
-  },
-  sectionHeader: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 10,
-    justifyContent: "space-between",
-  },
-  sectionTitle: {
-    color: colors.foreground,
-    fontSize: 19,
-    fontWeight: "900",
-  },
-  summaryDivider: {
-    backgroundColor: colors.line,
-    height: 28,
-    marginRight: 14,
-    width: 1,
-  },
-  summaryItem: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 5,
-  },
-  summaryLabel: {
-    color: colors.inkSoft,
-    fontSize: 11,
-    fontWeight: "900",
-    textTransform: "uppercase",
-  },
-  summaryLine: {
-    alignItems: "center",
+  heroPills: { flexDirection: "row", gap: 8 },
+  heroKeyRow: { alignItems: "center", flexDirection: "row", gap: 6 },
+  heroKey: { fontSize: 11, fontWeight: "900", letterSpacing: 0.7, textTransform: "uppercase" },
+  heroBullet: { backgroundColor: colors.line, borderRadius: 99, height: 4, width: 4 },
+  heroVisibility: { color: colors.inkSoft, fontSize: 11, fontWeight: "800", textTransform: "uppercase" },
+  heroTitle: { color: colors.foreground, fontSize: 24, fontWeight: "900", letterSpacing: -0.4, lineHeight: 30 },
+  heroDesc: { color: colors.inkSoft, fontSize: 14, fontWeight: "700", lineHeight: 21 },
+  progressTrack: { backgroundColor: colors.line, borderRadius: 99, flexDirection: "row", height: 8, overflow: "hidden" },
+  progressMeta: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
+  progressLabel: { color: colors.inkSoft, fontSize: 12, fontWeight: "800", textTransform: "uppercase" },
+  progressDateRow: { alignItems: "center", flexDirection: "row", gap: 5 },
+
+  // Stats grid
+  statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 14,
-    paddingTop: 2,
+    gap: 10,
   },
-  summaryValue: {
-    color: colors.foreground,
-    fontSize: 17,
-    fontWeight: "900",
+  statAccent: {
+    borderRadius: 999,
+    bottom: 14,
+    left: 0,
+    position: "absolute",
+    top: 14,
+    width: 4,
   },
-  tabButton: {
+  statCard: {
     backgroundColor: colors.panel,
     borderColor: colors.line,
-    borderRadius: 999,
+    borderRadius: radii.xl,
     borderWidth: 1,
-    minHeight: 42,
+    minHeight: 108,
+    overflow: "hidden",
+    padding: 14,
+    width: "48.5%",
+    ...shadow.card,
+  },
+  statContent: {
+    flex: 1,
+    justifyContent: "space-between",
+    paddingLeft: 6,
+  },
+  statIcon: {
+    alignItems: "center",
+    borderRadius: 16,
+    height: 42,
     justifyContent: "center",
-    paddingHorizontal: 15,
+    width: 42,
   },
-  tabButtonActive: {
-    backgroundColor: colors.foreground,
-    borderColor: colors.foreground,
-  },
-  tabButtonText: {
-    color: colors.inkSoft,
-    fontSize: 13,
-    fontWeight: "900",
-  },
-  tabButtonTextActive: {
-    color: colors.white,
-  },
-  tabsContent: {
-    gap: 8,
-    paddingRight: 20,
-  },
-  tabsLabel: {
+  statLabel: {
     color: colors.inkSoft,
     fontSize: 11,
     fontWeight: "900",
+    letterSpacing: 0.4,
     textTransform: "uppercase",
   },
-  tabsWrap: {
-    gap: 10,
+  statTopRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 8,
   },
-  title: {
-    color: colors.foreground,
-    fontSize: 27,
+  statValue: {
+    flexShrink: 1,
+    fontSize: 32,
     fontWeight: "900",
-    letterSpacing: 0,
-    lineHeight: 31,
+    letterSpacing: -0.5,
+    textAlign: "right",
   },
-});
+
+  // Section tabs
+  tabRail: { gap: 8, paddingRight: 4 },
+  tabChip: { backgroundColor: colors.panel, borderColor: colors.line, borderRadius: 999, borderWidth: 1, justifyContent: "center", minHeight: 40, paddingHorizontal: 18 },
+  tabChipActive: { backgroundColor: colors.foreground, borderColor: colors.foreground },
+  tabChipText: { color: colors.inkSoft, fontSize: 13, fontWeight: "900" },
+  tabChipTextActive: { color: colors.white },
+
+  // Section block
+  sectionBlock: { gap: 14 },
+
+  // Section card
+  sectionCard: { backgroundColor: colors.panel, borderColor: colors.line, borderRadius: radii.xl, borderWidth: 1, overflow: "hidden", ...shadow.card },
+  sectionCardHeader: { alignItems: "center", borderBottomColor: colors.line, borderBottomWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 18, paddingVertical: 14 },
+  sectionCardIconRow: { alignItems: "center", flex: 1, flexDirection: "row", gap: 8, minWidth: 0 },
+  sectionCardIcon: { alignItems: "center", backgroundColor: colors.blueSoft, borderRadius: radii.md, height: 34, justifyContent: "center", width: 34 },
+  sectionCardTitle: { color: colors.foreground, flexShrink: 1, fontSize: 15, fontWeight: "900" },
+  sectionAddBtn: { alignItems: "center", backgroundColor: colors.primary, borderRadius: 999, flexDirection: "row", gap: 5, paddingHorizontal: 12, paddingVertical: 7 },
+  sectionAddBtnText: { color: colors.black, fontSize: 12, fontWeight: "900" },
+
+  // Record card (rows inside section card)
+  recordCard: { borderBottomColor: colors.line, borderBottomWidth: 1, gap: 8, paddingHorizontal: 18, paddingVertical: 14 },
+  recordCardLast: { borderBottomWidth: 0 },
+  recordTopRow: { alignItems: "center", flexDirection: "row", gap: 10 },
+  recordTitle: { color: colors.foreground, flex: 1, fontSize: 14, fontWeight: "900" },
+  recordMeta: { color: colors.inkSoft, fontSize: 13, fontWeight: "700", lineHeight: 18 },
+  recordActions: { alignItems: "center", flexDirection: "row", gap: 8 },
+  actionBtn: { alignItems: "center", borderRadius: radii.sm, flexDirection: "row", gap: 4, paddingHorizontal: 10, paddingVertical: 6 },
+  actionBtnEdit: { backgroundColor: colors.blueSoft },
+  actionBtnDone: { backgroundColor: colors.greenSoft },
+  actionBtnText: { fontSize: 12, fontWeight: "800" },
+  flex1: { flex: 1 },
+  deleteBtn: { alignItems: "center", backgroundColor: colors.redSoft, borderRadius: radii.sm, height: 32, justifyContent: "center", width: 32 },
+
+  // Empty section
+  emptySection: { alignItems: "center", padding: 24 },
+  emptySectionText: { color: colors.inkSoft, fontSize: 13, fontWeight: "700" },
+
+  // Overview grid
+  overviewGrid: { gap: 0 },
+  overviewRow: { borderBottomColor: colors.line, borderBottomWidth: 1, flexDirection: "row" },
+  overviewCell: { flex: 1, gap: 5, padding: 16 },
+  overviewLabel: { color: colors.inkSoft, fontSize: 11, fontWeight: "900", letterSpacing: 0.5, textTransform: "uppercase" },
+  overviewValue: { color: colors.foreground, fontSize: 14, fontWeight: "800", lineHeight: 19 },
+}));

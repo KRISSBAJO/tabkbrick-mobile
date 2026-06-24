@@ -49,6 +49,14 @@ export const typography = {
   tiny: 11,
 } as const;
 
+export const fonts = {
+  regular: "PlusJakartaSans_400Regular",
+  medium: "PlusJakartaSans_500Medium",
+  semiBold: "PlusJakartaSans_600SemiBold",
+  bold: "PlusJakartaSans_700Bold",
+  extraBold: "PlusJakartaSans_800ExtraBold",
+} as const;
+
 export const shadow = {
   card: {
     shadowColor: "#111111",

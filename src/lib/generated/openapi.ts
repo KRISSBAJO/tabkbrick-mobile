@@ -2599,6 +2599,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/account/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get account center overview for the authenticated user */
+        get: operations["Account_overview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/workspaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List workspaces visible in the account center */
+        get: operations["Account_workspaces"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/guest-workspaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List invited project spaces for the current account */
+        get: operations["Account_guestWorkspaces"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/help": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get account support categories and available support channels */
+        get: operations["Account_help"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/support-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create an account support request and notify tenant admins */
+        post: operations["Account_createSupportRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/permissions": {
         parameters: {
             query?: never;
@@ -2962,6 +3047,40 @@ export interface paths {
         /** Invite a user and add them to a team atomically */
         post: operations["Teams_inviteMember"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/teams/{teamId}/members/{userId}/resend-invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resend a pending team invitation or notify an active user */
+        post: operations["Teams_resendMemberInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/teams/{teamId}/members/{userId}/invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Cancel a pending team invitation */
+        delete: operations["Teams_cancelMemberInvitation"];
         options?: never;
         head?: never;
         patch?: never;
@@ -8024,6 +8143,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/billing/checkout/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm a returned billing checkout and reconcile subscription state */
+        post: operations["Billing_confirmCheckoutSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/billing/trial": {
         parameters: {
             query?: never;
@@ -8693,6 +8829,74 @@ export interface paths {
         put?: never;
         /** Generate an AI project summary from tenant-scoped data */
         post: operations["Ai_projectSummary"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/board-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate an AI board summary from project board data */
+        post: operations["Ai_boardSummary"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/board-risk-scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Detect AI board risk signals from project board data */
+        post: operations["Ai_boardRiskScan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/board-actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate reviewable AI action proposals for a board */
+        post: operations["Ai_boardActionPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/board-actions/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply selected pending AI board actions after user review */
+        post: operations["Ai_applyBoardActions"];
         delete?: never;
         options?: never;
         head?: never;
@@ -14172,6 +14376,24 @@ export interface components {
             /** @default true */
             revokeOtherSessions?: boolean;
         };
+        CreateSupportRequestDto: {
+            /**
+             * @example WORKSPACE
+             * @enum {string}
+             */
+            category: "ACCOUNT" | "WORKSPACE" | "BILLING" | "SECURITY" | "TECHNICAL" | "FEATURE";
+            /**
+             * @default NORMAL
+             * @enum {string}
+             */
+            priority?: "LOW" | "NORMAL" | "HIGH" | "URGENT";
+            /** @example Cannot invite a user into the delivery workspace */
+            subject: string;
+            /** @example The invite form returns Unauthorized even though I am the tenant owner. */
+            message: string;
+            /** @example /settings?tab=workspace */
+            sourceUrl?: string;
+        };
         CreateRoleDto: {
             /** @example Delivery Manager */
             name: string;
@@ -15822,6 +16044,16 @@ export interface components {
             planId: string;
             /** @default true */
             prorate?: Record<string, never>;
+            /**
+             * @default immediate
+             * @enum {string}
+             */
+            changeTiming?: "immediate" | "period_end";
+            /**
+             * @default create_proration_invoice
+             * @enum {string}
+             */
+            prorationBehavior?: "none" | "create_proration_invoice" | "credit_next_invoice";
         };
         CreateInvoiceDto: {
             subscriptionId: string;
@@ -15858,6 +16090,23 @@ export interface components {
             cancelUrl?: string;
             /** @enum {string} */
             provider?: "stripe" | "paystack" | "local";
+        };
+        CheckoutConfirmDto: {
+            /** @enum {string} */
+            provider?: "stripe" | "paystack";
+            /** @description Stripe Checkout Session id returned as session_id. */
+            sessionId?: string;
+            /** @description Paystack transaction reference returned as reference or trxref. */
+            reference?: string;
+        };
+        CheckoutConfirmResponseDto: {
+            /** @enum {string} */
+            provider: "stripe" | "paystack";
+            status: string;
+            message: string;
+            subscription?: Record<string, never> | null;
+            invoice?: Record<string, never> | null;
+            account?: Record<string, never>;
         };
         StartTenantTrialDto: {
             planId: string;
@@ -16042,6 +16291,112 @@ export interface components {
             agentId?: string;
             prompt?: string;
             options?: Record<string, never>;
+        };
+        BoardAiDto: {
+            projectId: string;
+            agentId?: string;
+            prompt?: string;
+            options?: Record<string, never>;
+            /** @description Specific board to analyze. Defaults to the project default board. */
+            boardId?: string;
+        };
+        BoardAiUsageDto: {
+            id: string;
+            provider: string;
+            model: string;
+            totalTokens: number;
+        };
+        BoardAiSummaryResponseDto: {
+            generated: boolean;
+            projectId: string;
+            boardId?: string | null;
+            content: string;
+            highlights: string[];
+            risks: string[];
+            recommendedActions: string[];
+            usage: components["schemas"]["BoardAiUsageDto"];
+        };
+        BoardAiRiskFindingDto: {
+            type: string;
+            severity: string;
+            title: string;
+            evidence: string;
+            taskId?: string;
+            columnId?: string;
+        };
+        BoardAiRiskScanResponseDto: {
+            generated: boolean;
+            projectId: string;
+            boardId?: string | null;
+            findings: components["schemas"]["BoardAiRiskFindingDto"][];
+            narrative: string;
+            usage: components["schemas"]["BoardAiUsageDto"];
+        };
+        BoardAiActionPayloadDto: {
+            projectId: string;
+            boardId?: string | null;
+            taskId?: string;
+            boardColumnId?: string | null;
+            title?: string;
+            description?: string;
+            /** @enum {string} */
+            status?: "BACKLOG" | "TODO" | "IN_PROGRESS" | "REVIEW" | "TESTING" | "DONE" | "CANCELLED";
+            /** @enum {string} */
+            priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT" | "CRITICAL";
+            /** @enum {string} */
+            type?: "TASK" | "BUG" | "STORY" | "EPIC" | "FEATURE" | "INCIDENT" | "APPROVAL" | "CHANGE_REQUEST" | "MILESTONE";
+            dueDate?: string | null;
+            storyPoints?: number;
+            estimateMins?: number;
+            sortOrder?: number;
+        };
+        BoardAiActionProposalDto: {
+            actionId: string;
+            /** @enum {string} */
+            type: "BOARD_CREATE_TASK" | "BOARD_UPDATE_TASK" | "BOARD_MOVE_TASK";
+            title: string;
+            rationale: string;
+            impact: string;
+            /** @enum {string} */
+            riskLevel: "LOW" | "MEDIUM" | "HIGH";
+            confidence: number;
+            taskId?: string;
+            taskKey?: string;
+            taskTitle?: string;
+            columnId?: string;
+            columnName?: string;
+            payload: components["schemas"]["BoardAiActionPayloadDto"];
+        };
+        BoardAiActionPlanResponseDto: {
+            generated: boolean;
+            projectId: string;
+            boardId?: string | null;
+            summary: string;
+            proposals: components["schemas"]["BoardAiActionProposalDto"][];
+            usage: components["schemas"]["BoardAiUsageDto"];
+        };
+        BoardAiApplyActionsDto: {
+            projectId: string;
+            /** @description Board scope used when the action plan was generated. */
+            boardId?: string;
+            actionIds: string[];
+        };
+        BoardAiApplyResultDto: {
+            actionId: string;
+            type: string;
+            status: string;
+            title?: string;
+            entityType?: string;
+            entityId?: string;
+            message?: string;
+            error?: string;
+        };
+        BoardAiApplyResponseDto: {
+            projectId: string;
+            boardId?: string | null;
+            applied: number;
+            failed: number;
+            results: components["schemas"]["BoardAiApplyResultDto"][];
         };
         KnowledgeSearchDto: {
             query: string;
@@ -20811,6 +21166,108 @@ export interface operations {
             };
         };
     };
+    Account_overview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Account overview with tenant, workspace, security, and notification counts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Account_workspaces: {
+        parameters: {
+            query?: {
+                page?: number;
+                limit?: number;
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated account workspace list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Account_guestWorkspaces: {
+        parameters: {
+            query?: {
+                page?: number;
+                limit?: number;
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated guest workspace/project memberships */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Account_help: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Account help and support metadata */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Account_createSupportRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSupportRequestDto"];
+            };
+        };
+        responses: {
+            /** @description Support request received */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     AccessControl_listPermissions: {
         parameters: {
             query?: never;
@@ -21538,6 +21995,50 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TeamMember"];
+                };
+            };
+        };
+    };
+    Teams_resendMemberInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                teamId: string;
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    Teams_cancelMemberInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                teamId: string;
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };
@@ -31277,6 +31778,29 @@ export interface operations {
             };
         };
     };
+    Billing_confirmCheckoutSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckoutConfirmDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutConfirmResponseDto"];
+                };
+            };
+        };
+    };
     Billing_startTenantTrial: {
         parameters: {
             query?: never;
@@ -32450,6 +32974,98 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    Ai_boardSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BoardAiDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BoardAiSummaryResponseDto"];
+                };
+            };
+        };
+    };
+    Ai_boardRiskScan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BoardAiDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BoardAiRiskScanResponseDto"];
+                };
+            };
+        };
+    };
+    Ai_boardActionPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BoardAiDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BoardAiActionPlanResponseDto"];
+                };
+            };
+        };
+    };
+    Ai_applyBoardActions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BoardAiApplyActionsDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BoardAiApplyResponseDto"];
+                };
             };
         };
     };

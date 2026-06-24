@@ -1,6 +1,7 @@
-import { boundedLimit, openApiRequest, type OpenApiQuery } from "@/lib/api/request";
+import { boundedLimit, openApiRequest, type OpenApiJsonBody, type OpenApiQuery } from "@/lib/api/request";
 
 type ListMeetingsQuery = OpenApiQuery<"/api/v1/meetings", "get">;
+export type CreateMeetingPayload = OpenApiJsonBody<"/api/v1/meetings", "post">;
 
 export function listMeetings(token: string, query: ListMeetingsQuery = {}) {
   return openApiRequest("/api/v1/meetings", "get", {
@@ -20,5 +21,13 @@ export function getMeeting(token: string, meetingId: string) {
     token,
     cache: "no-store",
     pathParams: { meetingId },
+  });
+}
+
+export function createMeeting(token: string, body: CreateMeetingPayload) {
+  return openApiRequest("/api/v1/meetings", "post", {
+    token,
+    body,
+    pathParams: {},
   });
 }

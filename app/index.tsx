@@ -14,7 +14,7 @@ export default function IndexRoute() {
     );
   }
 
-  return <Redirect href={user ? "/(workspace)" : "/login"} />;
+  return <Redirect href={user ? "/(workspace)" : "/entrance"} />;
 }
 
 const styles = StyleSheet.create({
