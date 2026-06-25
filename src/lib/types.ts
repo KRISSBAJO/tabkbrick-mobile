@@ -71,6 +71,7 @@ export type TaskAttachment = Schemas["TaskAttachment"];
 export type TaskChecklist = Schemas["TaskChecklist"];
 export type TaskComment = Schemas["TaskComment"];
 export type TaskDependency = Schemas["TaskDependency"];
+export type TaskLabel = Schemas["TaskLabel"];
 export type TaskLabelAssignment = Schemas["TaskLabelAssignment"];
 export type TaskWatcher = Schemas["TaskWatcher"];
 export type UploadIntent = Schemas["UploadIntent"];

@@ -1,24 +1,47 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, type Href } from "expo-router";
 import {
   ArrowLeft,
+  Archive,
   CalendarDays,
   CheckCircle2,
   CheckSquare2,
+  Eye,
   FileText,
   Link2,
   MessageSquare,
   Paperclip,
+  Plus,
+  RotateCcw,
   Send,
   ShieldAlert,
   Tag,
+  Trash2,
+  Users,
+  X,
 } from "lucide-react-native";
 import { StatusPill } from "@/components/ui/StatusPill";
 import {
+  addTaskAssignee,
+  addTaskWatcher,
+  archiveTask,
+  assignTaskLabel,
+  createLabel,
+  createTaskAttachment,
+  createTaskChecklist,
+  createTaskChecklistItem,
   createTaskComment,
+  createTaskDependency,
+  deleteTask,
+  deleteTaskAttachment,
+  deleteTaskChecklist,
+  deleteTaskChecklistItem,
+  deleteTaskComment,
+  deleteTaskDependency,
   getTask,
+  listLabels,
   listTaskActivities,
   listTaskAssignees,
   listTaskAttachments,
@@ -27,6 +50,13 @@ import {
   listTaskDependencies,
   listTaskLabels,
   listTaskWatchers,
+  listTasks,
+  listUsers,
+  removeTaskAssignee,
+  removeTaskLabel,
+  removeTaskWatcher,
+  restoreTask,
+  updateTaskChecklistItem,
   updateTask,
 } from "@/lib/api";
 import { useAuthSession } from "@/lib/auth/AuthSessionProvider";
@@ -40,8 +70,10 @@ import type {
   TaskChecklist,
   TaskComment,
   TaskDependency,
+  TaskLabel,
   TaskLabelAssignment,
   TaskWatcher,
+  TenantUser,
 } from "@/lib/types";
 import {
   displayUserName,
@@ -52,7 +84,36 @@ import {
   statusTone,
   taskPriorities,
   taskStatuses,
+  taskTypes,
 } from "./taskFilters";
+
+type TaskAction =
+  | "addAssignee"
+  | "addAttachment"
+  | "addChecklist"
+  | "addChecklistItem"
+  | "addDependency"
+  | "addLabel"
+  | "addWatcher"
+  | "createLabel"
+  | "editTask"
+  | null;
+
+type DraftState = {
+  color: string;
+  description: string;
+  dueDate: string;
+  estimateHours: string;
+  fileName: string;
+  fileUrl: string;
+  labelName: string;
+  mimeType: string;
+  search: string;
+  storyPoints: string;
+  text: string;
+  title: string;
+  type: Task["type"];
+};
 
 type TaskDetailData = {
   activities: TaskActivity[];
@@ -74,6 +135,26 @@ export function TaskDetailScreen({ returnTo, taskId }: { returnTo?: string; task
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [action, setAction] = useState<TaskAction>(null);
+  const [actionContextId, setActionContextId] = useState<string | null>(null);
+  const [tenantLabels, setTenantLabels] = useState<TaskLabel[]>([]);
+  const [tenantUsers, setTenantUsers] = useState<TenantUser[]>([]);
+  const [taskOptions, setTaskOptions] = useState<Task[]>([]);
+  const [draft, setDraft] = useState<DraftState>({
+    color: "#2563eb",
+    description: "",
+    dueDate: "",
+    estimateHours: "",
+    fileName: "",
+    fileUrl: "",
+    labelName: "",
+    mimeType: "",
+    search: "",
+    storyPoints: "",
+    text: "",
+    title: "",
+    type: "TASK",
+  });
 
   const load = useCallback(async (showRefreshing = false) => {
     if (!accessToken || !taskId) return;
@@ -94,6 +175,14 @@ export function TaskDetailScreen({ returnTo, taskId }: { returnTo?: string; task
           safe(listTaskWatchers(accessToken, taskId), []),
         ]);
       setData({ activities, assignees, attachments, checklists, comments, dependencies, labels, task, watchers });
+      const [usersPage, labelsList, tasksPage] = await Promise.all([
+        safe(listUsers(accessToken, { limit: 100, page: 1 }), { data: [], limit: 100, page: 1, total: 0, totalPages: 0 }),
+        safe(listLabels(accessToken), []),
+        safe(listTasks(accessToken, { limit: 100, page: 1 }), { data: [], limit: 100, page: 1, total: 0, totalPages: 0 }),
+      ]);
+      setTenantUsers(usersPage.data ?? []);
+      setTenantLabels(labelsList);
+      setTaskOptions((tasksPage.data ?? []).filter((candidate) => candidate.id !== taskId));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to load task.");
     } finally {
@@ -110,6 +199,28 @@ export function TaskDetailScreen({ returnTo, taskId }: { returnTo?: string; task
     const done = data?.checklists.reduce((s, cl) => s + cl.items.filter((i) => i.isDone).length, 0) ?? 0;
     return { done, total };
   }, [data?.checklists]);
+
+  const assignedUserIds = useMemo(() => new Set(data?.assignees.map((item) => item.user.id) ?? []), [data?.assignees]);
+  const watcherUserIds = useMemo(() => new Set(data?.watchers.map((item) => item.userId ?? item.user?.id).filter(Boolean) as string[]), [data?.watchers]);
+  const assignedLabelIds = useMemo(() => new Set(data?.labels.map((item) => item.label.id) ?? []), [data?.labels]);
+
+  const filteredUsers = useMemo(() => {
+    const query = draft.search.trim().toLowerCase();
+    if (!query) return tenantUsers;
+    return tenantUsers.filter((user) => `${displayUserName(user)} ${user.email}`.toLowerCase().includes(query));
+  }, [draft.search, tenantUsers]);
+
+  const filteredLabels = useMemo(() => {
+    const query = draft.search.trim().toLowerCase();
+    if (!query) return tenantLabels;
+    return tenantLabels.filter((label) => label.name.toLowerCase().includes(query));
+  }, [draft.search, tenantLabels]);
+
+  const filteredTaskOptions = useMemo(() => {
+    const query = draft.search.trim().toLowerCase();
+    if (!query) return taskOptions;
+    return taskOptions.filter((candidate) => `${candidate.key} ${candidate.title} ${candidate.project?.name ?? ""}`.toLowerCase().includes(query));
+  }, [draft.search, taskOptions]);
 
   async function quickUpdate(patch: Partial<Pick<Task, "priority" | "status">>) {
     if (!accessToken || !task) return;
@@ -139,6 +250,365 @@ export function TaskDetailScreen({ returnTo, taskId }: { returnTo?: string; task
     } finally {
       setSaving(false);
     }
+  }
+
+  function openAction(nextAction: Exclude<TaskAction, null>, contextId?: string) {
+    setAction(nextAction);
+    setActionContextId(contextId ?? null);
+    const editDefaults = nextAction === "editTask" && task ? {
+      description: task.description ?? "",
+      dueDate: task.dueDate ? String(task.dueDate).slice(0, 10) : "",
+      estimateHours: task.estimateMins ? String(task.estimateMins / 60) : "",
+      storyPoints: task.storyPoints ? String(task.storyPoints) : "",
+      title: task.title,
+      type: task.type,
+    } : null;
+    setDraft({
+      color: "#2563eb",
+      description: editDefaults?.description ?? "",
+      dueDate: editDefaults?.dueDate ?? "",
+      estimateHours: editDefaults?.estimateHours ?? "",
+      fileName: "",
+      fileUrl: "",
+      labelName: "",
+      mimeType: "",
+      search: "",
+      storyPoints: editDefaults?.storyPoints ?? "",
+      text: "",
+      title: editDefaults?.title ?? "",
+      type: editDefaults?.type ?? "TASK",
+    });
+    setError("");
+  }
+
+  function closeAction() {
+    setAction(null);
+    setActionContextId(null);
+  }
+
+  async function runMutation(work: () => Promise<unknown>, fallback: string, close = false) {
+    if (!accessToken || !task) return;
+    setSaving(true);
+    setError("");
+    try {
+      await work();
+      if (close) closeAction();
+      await load(true);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : fallback);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleCreateChecklist() {
+    if (!draft.title.trim() || !accessToken || !task) return;
+    await runMutation(
+      () => createTaskChecklist(accessToken, task.id, { title: draft.title.trim() }),
+      "Unable to create checklist.",
+      true,
+    );
+  }
+
+  async function handleCreateChecklistItem() {
+    if (!draft.text.trim() || !actionContextId || !accessToken || !task) return;
+    await runMutation(
+      () => createTaskChecklistItem(accessToken, task.id, actionContextId, { text: draft.text.trim() }),
+      "Unable to add checklist item.",
+      true,
+    );
+  }
+
+  async function handleCreateAttachment() {
+    if (!draft.fileUrl.trim() || !accessToken || !task) return;
+    const fileUrl = draft.fileUrl.trim();
+    const fallbackName = fileUrl.split("/").filter(Boolean).pop() ?? "Linked file";
+    await runMutation(
+      () => createTaskAttachment(accessToken, task.id, {
+        fileName: draft.fileName.trim() || fallbackName,
+        fileUrl,
+        mimeType: draft.mimeType.trim() || undefined,
+      }),
+      "Unable to link task file.",
+      true,
+    );
+  }
+
+  async function handleCreateLabelAndAssign() {
+    if (!draft.labelName.trim() || !accessToken || !task) return;
+    await runMutation(async () => {
+      const label = await createLabel(accessToken, { name: draft.labelName.trim(), color: draft.color.trim() || undefined });
+      await assignTaskLabel(accessToken, task.id, label.id);
+    }, "Unable to create label.", true);
+  }
+
+  async function handleUpdateTaskCore() {
+    if (!accessToken || !task || !draft.title.trim()) return;
+    const estimate = Number(draft.estimateHours);
+    const storyPoints = Number.parseInt(draft.storyPoints, 10);
+    await runMutation(
+      () => updateTask(accessToken, task.id, {
+        description: draft.description.trim() || undefined,
+        dueDate: draft.dueDate.trim() || null,
+        estimateMins: Number.isFinite(estimate) && estimate > 0 ? Math.round(estimate * 60) : undefined,
+        storyPoints: Number.isFinite(storyPoints) && storyPoints >= 0 ? storyPoints : undefined,
+        title: draft.title.trim(),
+        type: draft.type,
+      }),
+      "Unable to update task.",
+      true,
+    );
+  }
+
+  function confirmDelete(title: string, message: string, onConfirm: () => void) {
+    Alert.alert(title, message, [
+      { style: "cancel", text: "Cancel" },
+      { onPress: onConfirm, style: "destructive", text: "Delete" },
+    ]);
+  }
+
+  function confirmArchive() {
+    Alert.alert("Archive task", "Archive this task for the workspace?", [
+      { style: "cancel", text: "Cancel" },
+      {
+        onPress: () => void runMutation(() => archiveTask(accessToken!, task!.id), "Unable to archive task."),
+        text: "Archive",
+      },
+    ]);
+  }
+
+  function confirmDeleteTask() {
+    Alert.alert("Delete task", "This removes the task from active work. Continue?", [
+      { style: "cancel", text: "Cancel" },
+      {
+        onPress: () => void deleteCurrentTask(),
+        style: "destructive",
+        text: "Delete",
+      },
+    ]);
+  }
+
+  async function deleteCurrentTask() {
+    if (!accessToken || !task) return;
+    setSaving(true);
+    setError("");
+    try {
+      await deleteTask(accessToken, task.id);
+      router.replace((returnTo as Href) || "/(workspace)/tasks");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to delete task.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function renderActionModal() {
+    if (!action || !task) return null;
+    const userAction = action === "addAssignee" || action === "addWatcher";
+    const title = actionTitle(action);
+    const subtitle = actionSubtitle(action);
+
+    return (
+      <Modal animationType="slide" onRequestClose={closeAction} transparent visible={Boolean(action)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalEyebrow}>Task management</Text>
+                <Text style={styles.modalTitle}>{title}</Text>
+                <Text style={styles.modalSubtitle}>{subtitle}</Text>
+              </View>
+              <Pressable accessibilityRole="button" onPress={closeAction} style={styles.modalClose}>
+                <X color={colors.foreground} size={20} strokeWidth={2.8} />
+              </Pressable>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.modalBody} showsVerticalScrollIndicator={false}>
+              {userAction ? (
+                <>
+                  <ManagedInput
+                    label="Find user"
+                    onChangeText={(search) => setDraft((current) => ({ ...current, search }))}
+                    placeholder="Search name or email"
+                    value={draft.search}
+                  />
+                  <View style={styles.optionStack}>
+                    {filteredUsers.slice(0, 50).map((user) => {
+                      const selected = action === "addAssignee" ? assignedUserIds.has(user.id) : watcherUserIds.has(user.id);
+                      return (
+                        <Pressable
+                          accessibilityRole="button"
+                          disabled={selected || saving}
+                          key={user.id}
+                          onPress={() => void runMutation(
+                            () => action === "addAssignee"
+                              ? addTaskAssignee(accessToken!, task.id, user.id)
+                              : addTaskWatcher(accessToken!, task.id, user.id),
+                            action === "addAssignee" ? "Unable to add assignee." : "Unable to add watcher.",
+                            true,
+                          )}
+                          style={[styles.optionRow, selected && styles.optionRowDisabled]}
+                        >
+                          <View style={styles.optionAvatar}>
+                            <Text style={styles.optionAvatarText}>{initials(user)}</Text>
+                          </View>
+                          <View style={styles.optionTextBlock}>
+                            <Text numberOfLines={1} style={styles.optionTitle}>{displayUserName(user)}</Text>
+                            <Text numberOfLines={1} style={styles.optionMeta}>{user.email}</Text>
+                          </View>
+                          <Text style={selected ? styles.optionSelectedText : styles.optionAddText}>{selected ? "Added" : "Add"}</Text>
+                        </Pressable>
+                      );
+                    })}
+                    {!filteredUsers.length ? <Text style={styles.emptyText}>No matching users.</Text> : null}
+                  </View>
+                </>
+              ) : null}
+
+              {action === "addLabel" ? (
+                <>
+                  <ManagedInput
+                    label="Find label"
+                    onChangeText={(search) => setDraft((current) => ({ ...current, search }))}
+                    placeholder="Search label"
+                    value={draft.search}
+                  />
+                  <Pressable accessibilityRole="button" onPress={() => openAction("createLabel")} style={styles.createInline}>
+                    <Plus color={colors.black} size={16} strokeWidth={3} />
+                    <Text style={styles.createInlineText}>Create new label</Text>
+                  </Pressable>
+                  <View style={styles.optionStack}>
+                    {filteredLabels.slice(0, 50).map((label) => {
+                      const selected = assignedLabelIds.has(label.id);
+                      return (
+                        <Pressable
+                          accessibilityRole="button"
+                          disabled={selected || saving}
+                          key={label.id}
+                          onPress={() => void runMutation(
+                            () => assignTaskLabel(accessToken!, task.id, label.id),
+                            "Unable to assign label.",
+                            true,
+                          )}
+                          style={[styles.optionRow, selected && styles.optionRowDisabled]}
+                        >
+                          <View style={[styles.labelSwatch, { backgroundColor: label.color ?? colors.primary }]} />
+                          <Text numberOfLines={1} style={styles.optionTitle}>{label.name}</Text>
+                          <Text style={selected ? styles.optionSelectedText : styles.optionAddText}>{selected ? "Added" : "Add"}</Text>
+                        </Pressable>
+                      );
+                    })}
+                    {!filteredLabels.length ? <Text style={styles.emptyText}>No labels found.</Text> : null}
+                  </View>
+                </>
+              ) : null}
+
+              {action === "createLabel" ? (
+                <>
+                  <ManagedInput label="Label name" onChangeText={(labelName) => setDraft((current) => ({ ...current, labelName }))} placeholder="Customer risk" value={draft.labelName} />
+                  <ManagedInput label="Color" onChangeText={(color) => setDraft((current) => ({ ...current, color }))} placeholder="#2563eb" value={draft.color} />
+                  <PrimaryModalButton disabled={!draft.labelName.trim() || saving} label={saving ? "Creating..." : "Create and add"} onPress={() => void handleCreateLabelAndAssign()} />
+                </>
+              ) : null}
+
+              {action === "addChecklist" ? (
+                <>
+                  <ManagedInput label="Checklist title" onChangeText={(titleValue) => setDraft((current) => ({ ...current, title: titleValue }))} placeholder="Acceptance checklist" value={draft.title} />
+                  <PrimaryModalButton disabled={!draft.title.trim() || saving} label={saving ? "Creating..." : "Create checklist"} onPress={() => void handleCreateChecklist()} />
+                </>
+              ) : null}
+
+              {action === "addChecklistItem" ? (
+                <>
+                  <ManagedInput label="Checklist item" onChangeText={(text) => setDraft((current) => ({ ...current, text }))} placeholder="Confirm staging deployment" value={draft.text} />
+                  <PrimaryModalButton disabled={!draft.text.trim() || saving} label={saving ? "Adding..." : "Add item"} onPress={() => void handleCreateChecklistItem()} />
+                </>
+              ) : null}
+
+              {action === "addAttachment" ? (
+                <>
+                  <ManagedInput label="File or link name" onChangeText={(fileName) => setDraft((current) => ({ ...current, fileName }))} placeholder="Release notes" value={draft.fileName} />
+                  <ManagedInput label="URL" onChangeText={(fileUrl) => setDraft((current) => ({ ...current, fileUrl }))} placeholder="https://..." value={draft.fileUrl} />
+                  <ManagedInput label="MIME type" onChangeText={(mimeType) => setDraft((current) => ({ ...current, mimeType }))} placeholder="application/pdf" value={draft.mimeType} />
+                  <PrimaryModalButton disabled={!draft.fileUrl.trim() || saving} label={saving ? "Linking..." : "Link file"} onPress={() => void handleCreateAttachment()} />
+                </>
+              ) : null}
+
+              {action === "editTask" ? (
+                <>
+                  <ManagedInput label="Title" onChangeText={(titleValue) => setDraft((current) => ({ ...current, title: titleValue }))} placeholder="Task title" value={draft.title} />
+                  <View style={styles.managedInputBlock}>
+                    <Text style={styles.managedInputLabel}>Description</Text>
+                    <TextInput
+                      multiline
+                      onChangeText={(description) => setDraft((current) => ({ ...current, description }))}
+                      placeholder="Context, acceptance notes, or handoff details"
+                      placeholderTextColor={colors.inkSoft}
+                      style={[styles.managedInput, styles.managedTextArea]}
+                      value={draft.description}
+                    />
+                  </View>
+                  <View style={styles.typeRail}>
+                    {taskTypes.map((type) => (
+                      <Pressable
+                        accessibilityRole="button"
+                        key={type}
+                        onPress={() => setDraft((current) => ({ ...current, type }))}
+                        style={[styles.typeChip, draft.type === type && styles.typeChipActive]}
+                      >
+                        <Text style={[styles.typeChipText, draft.type === type && styles.typeChipTextActive]}>{humanStatus(type)}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <ManagedInput label="Due date" onChangeText={(dueDate) => setDraft((current) => ({ ...current, dueDate }))} placeholder="YYYY-MM-DD or blank" value={draft.dueDate} />
+                  <View style={styles.modalTwoCol}>
+                    <ManagedInput label="Story points" onChangeText={(storyPoints) => setDraft((current) => ({ ...current, storyPoints }))} placeholder="0" value={draft.storyPoints} />
+                    <ManagedInput label="Estimate hours" onChangeText={(estimateHours) => setDraft((current) => ({ ...current, estimateHours }))} placeholder="0" value={draft.estimateHours} />
+                  </View>
+                  <PrimaryModalButton disabled={!draft.title.trim() || saving} label={saving ? "Updating..." : "Update task"} onPress={() => void handleUpdateTaskCore()} />
+                </>
+              ) : null}
+
+              {action === "addDependency" ? (
+                <>
+                  <ManagedInput
+                    label="Find task"
+                    onChangeText={(search) => setDraft((current) => ({ ...current, search }))}
+                    placeholder="Search key, title, or project"
+                    value={draft.search}
+                  />
+                  <View style={styles.optionStack}>
+                    {filteredTaskOptions.slice(0, 60).map((candidate) => (
+                      <Pressable
+                        accessibilityRole="button"
+                        key={candidate.id}
+                        onPress={() => void runMutation(
+                          () => createTaskDependency(accessToken!, task.id, { toTaskId: candidate.id, type: "BLOCKS" }),
+                          "Unable to create dependency.",
+                          true,
+                        )}
+                        style={styles.optionRow}
+                      >
+                        <View style={styles.optionTaskKey}>
+                          <Text style={styles.optionTaskKeyText}>{candidate.key}</Text>
+                        </View>
+                        <View style={styles.optionTextBlock}>
+                          <Text numberOfLines={1} style={styles.optionTitle}>{candidate.title}</Text>
+                          <Text numberOfLines={1} style={styles.optionMeta}>{candidate.project?.name ?? "Task"} · {humanStatus(candidate.status)}</Text>
+                        </View>
+                        <Text style={styles.optionAddText}>Link</Text>
+                      </Pressable>
+                    ))}
+                    {!filteredTaskOptions.length ? <Text style={styles.emptyText}>No matching tasks.</Text> : null}
+                  </View>
+                </>
+              ) : null}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    );
   }
 
   function closeTask() {
@@ -302,10 +772,10 @@ export function TaskDetailScreen({ returnTo, taskId }: { returnTo?: string; task
         </ContentCard>
 
         {/* ── LABELS ── */}
-        {data.labels.length > 0 && (
+        {false && data!.labels.length > 0 && (
           <ContentCard icon={<Tag color={colors.accent} size={17} strokeWidth={2.5} />} title="Labels">
             <View style={styles.tagsRow}>
-              {data.labels.map((a) => (
+              {data!.labels.map((a) => (
                 <View key={a.id} style={styles.tag}>
                   <Text style={styles.tagText}>{a.label.name}</Text>
                 </View>
@@ -315,10 +785,10 @@ export function TaskDetailScreen({ returnTo, taskId }: { returnTo?: string; task
         )}
 
         {/* ── CHECKLISTS ── */}
-        {data.checklists.length > 0 && (
+        {false && data!.checklists.length > 0 && (
           <ContentCard icon={<CheckCircle2 color={colors.accent} size={17} strokeWidth={2.5} />} title="Checklists">
             <View style={styles.checklistStack}>
-              {data.checklists.map((cl) => {
+              {data!.checklists.map((cl) => {
                 const doneCount = cl.items.filter((i) => i.isDone).length;
                 const totalCount = cl.items.length;
                 return (
@@ -349,14 +819,235 @@ export function TaskDetailScreen({ returnTo, taskId }: { returnTo?: string; task
         )}
 
         {/* ── DEPENDENCIES ── */}
-        {(data.dependencies.blockedBy.length > 0 || data.dependencies.blocking.length > 0) && (
+        {false && (data!.dependencies.blockedBy.length > 0 || data!.dependencies.blocking.length > 0) && (
           <ContentCard icon={<Link2 color={colors.accent} size={17} strokeWidth={2.5} />} title="Dependencies">
-            <DependencyGroup title="Blocked by" tasks={data.dependencies.blockedBy.map((d) => d.fromTask).filter(isDependencyTask)} />
-            <DependencyGroup title="Blocking" tasks={data.dependencies.blocking.map((d) => d.toTask).filter(isDependencyTask)} />
+            <DependencyGroup title="Blocked by" tasks={data!.dependencies.blockedBy.map((d) => d.fromTask).filter(isDependencyTask)} />
+            <DependencyGroup title="Blocking" tasks={data!.dependencies.blocking.map((d) => d.toTask).filter(isDependencyTask)} />
           </ContentCard>
         )}
 
         {/* ── COMMENTS ── */}
+        <ContentCard
+          action={<SectionAction label="Add" onPress={() => openAction("addAssignee")} />}
+          icon={<Users color={colors.accent} size={17} strokeWidth={2.5} />}
+          title="Assignees"
+          count={data.assignees.length}
+        >
+          {data.assignees.length ? (
+            <View style={styles.personStack}>
+              {data.assignees.map((assignee) => (
+                <PersonRow
+                  key={assignee.id}
+                  meta={assignee.user.email}
+                  name={displayUserName(assignee.user)}
+                  onRemove={() => void runMutation(
+                    () => removeTaskAssignee(accessToken!, task.id, assignee.user.id),
+                    "Unable to remove assignee.",
+                  )}
+                />
+              ))}
+            </View>
+          ) : (
+            <EmptyPanel text="No assignee yet. Add an owner so the task has a clear driver." />
+          )}
+        </ContentCard>
+
+        <ContentCard
+          action={<SectionAction label="Add" onPress={() => openAction("addWatcher")} />}
+          icon={<Eye color={colors.accent} size={17} strokeWidth={2.5} />}
+          title="Watchers"
+          count={data.watchers.length}
+        >
+          {data.watchers.length ? (
+            <View style={styles.personStack}>
+              {data.watchers.map((watcher) => (
+                <PersonRow
+                  key={watcher.id}
+                  meta={watcher.user?.email ?? "Watching this task"}
+                  name={displayUserName(watcher.user)}
+                  onRemove={() => watcher.userId || watcher.user?.id ? void runMutation(
+                    () => removeTaskWatcher(accessToken!, task.id, watcher.userId ?? watcher.user!.id),
+                    "Unable to remove watcher.",
+                  ) : undefined}
+                />
+              ))}
+            </View>
+          ) : (
+            <EmptyPanel text="No watchers yet. Add teammates who need task updates." />
+          )}
+        </ContentCard>
+
+        <ContentCard
+          action={<SectionAction label="Add" onPress={() => openAction("addLabel")} />}
+          icon={<Tag color={colors.accent} size={17} strokeWidth={2.5} />}
+          title="Labels"
+          count={data.labels.length}
+        >
+          {data.labels.length ? (
+            <View style={styles.tagsRow}>
+              {data.labels.map((assignment) => (
+                <Pressable
+                  accessibilityRole="button"
+                  key={assignment.id}
+                  onPress={() => void runMutation(
+                    () => removeTaskLabel(accessToken!, task.id, assignment.label.id),
+                    "Unable to remove label.",
+                  )}
+                  style={[styles.tag, { borderColor: assignment.label.color ?? "#e6c800" }]}
+                >
+                  <Text style={styles.tagText}>{assignment.label.name}</Text>
+                  <X color="#7a5800" size={13} strokeWidth={3} />
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <EmptyPanel text="No labels yet. Add labels for filtering and reporting." />
+          )}
+        </ContentCard>
+
+        <ContentCard
+          action={<SectionAction label="New" onPress={() => openAction("addChecklist")} />}
+          icon={<CheckCircle2 color={colors.accent} size={17} strokeWidth={2.5} />}
+          title="Checklists"
+          count={data.checklists.length}
+        >
+          {data.checklists.length ? (
+            <View style={styles.checklistStack}>
+              {data.checklists.map((cl) => {
+                const doneCount = cl.items.filter((i) => i.isDone).length;
+                const totalCount = cl.items.length;
+                return (
+                  <View key={cl.id} style={styles.checklistGroup}>
+                    <View style={styles.checklistGroupHeader}>
+                      <View style={styles.checklistTitleBlock}>
+                        <Text style={styles.checklistGroupTitle}>{cl.title}</Text>
+                        <Text style={styles.checklistGroupCount}>{doneCount}/{totalCount} complete</Text>
+                      </View>
+                      <View style={styles.rowActions}>
+                        <Pressable accessibilityRole="button" onPress={() => openAction("addChecklistItem", cl.id)} style={styles.tinyAction}>
+                          <Plus color={colors.foreground} size={15} strokeWidth={3} />
+                        </Pressable>
+                        <Pressable
+                          accessibilityRole="button"
+                          onPress={() => confirmDelete(
+                            "Delete checklist",
+                            `Delete "${cl.title}" and its items?`,
+                            () => void runMutation(() => deleteTaskChecklist(accessToken!, task.id, cl.id), "Unable to delete checklist."),
+                          )}
+                          style={styles.tinyDangerAction}
+                        >
+                          <Trash2 color={colors.danger} size={15} strokeWidth={2.6} />
+                        </Pressable>
+                      </View>
+                    </View>
+                    <View style={styles.checklistBar}>
+                      <View style={{ flex: doneCount || 0.01, height: 3, backgroundColor: colors.success, borderRadius: 99 }} />
+                      <View style={{ flex: Math.max(totalCount - doneCount, 0) || 0.01, height: 3 }} />
+                    </View>
+                    {cl.items.length ? cl.items.map((item) => (
+                      <View key={item.id} style={styles.checkItem}>
+                        <Pressable
+                          accessibilityRole="checkbox"
+                          accessibilityState={{ checked: item.isDone }}
+                          onPress={() => void runMutation(
+                            () => updateTaskChecklistItem(accessToken!, task.id, cl.id, item.id, { isDone: !item.isDone }),
+                            "Unable to update checklist item.",
+                          )}
+                          style={[styles.checkBox, item.isDone && styles.checkBoxDone]}
+                        >
+                          {item.isDone && <Text style={styles.checkMark}>✓</Text>}
+                        </Pressable>
+                        <Text style={[styles.checkItemText, item.isDone && styles.checkItemStrike]}>{item.text}</Text>
+                        <Pressable
+                          accessibilityRole="button"
+                          onPress={() => void runMutation(
+                            () => deleteTaskChecklistItem(accessToken!, task.id, cl.id, item.id),
+                            "Unable to delete checklist item.",
+                          )}
+                          style={styles.inlineTrash}
+                        >
+                          <Trash2 color={colors.inkSoft} size={15} strokeWidth={2.4} />
+                        </Pressable>
+                      </View>
+                    )) : (
+                      <Text style={styles.emptyText}>No checklist items yet.</Text>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
+            <EmptyPanel text="No checklists yet. Create one to track acceptance items." />
+          )}
+        </ContentCard>
+
+        <ContentCard
+          action={<SectionAction label="Add" onPress={() => openAction("addDependency")} />}
+          icon={<Link2 color={colors.accent} size={17} strokeWidth={2.5} />}
+          title="Dependencies and blockers"
+          count={data.dependencies.blockedBy.length + data.dependencies.blocking.length}
+        >
+          {data.dependencies.blockedBy.length || data.dependencies.blocking.length ? (
+            <>
+              <DependencyGroupManaged
+                dependencies={data.dependencies.blockedBy}
+                direction="from"
+                onDelete={(dependencyId) => void runMutation(
+                  () => deleteTaskDependency(accessToken!, task.id, dependencyId),
+                  "Unable to remove dependency.",
+                )}
+                title="Blocked by"
+              />
+              <DependencyGroupManaged
+                dependencies={data.dependencies.blocking}
+                direction="to"
+                onDelete={(dependencyId) => void runMutation(
+                  () => deleteTaskDependency(accessToken!, task.id, dependencyId),
+                  "Unable to remove dependency.",
+                )}
+                title="Blocking"
+              />
+            </>
+          ) : (
+            <EmptyPanel text="No dependencies or blockers recorded." />
+          )}
+        </ContentCard>
+
+        <ContentCard
+          action={<SectionAction label="Link" onPress={() => openAction("addAttachment")} />}
+          icon={<Paperclip color={colors.accent} size={17} strokeWidth={2.5} />}
+          title="Task files"
+          count={data.attachments.length}
+        >
+          {data.attachments.length ? (
+            <View style={styles.fileStack}>
+              {data.attachments.map((file) => (
+                <View key={file.id} style={styles.fileRow}>
+                  <View style={styles.fileIcon}>
+                    <Paperclip color={colors.accent} size={16} strokeWidth={2.6} />
+                  </View>
+                  <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(file.fileUrl)} style={styles.fileInfo}>
+                    <Text numberOfLines={1} style={styles.fileName}>{file.fileName}</Text>
+                    <Text numberOfLines={1} style={styles.fileMeta}>{file.mimeType ?? "Linked file"} · {formatShortDate(file.createdAt)}</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => void runMutation(
+                      () => deleteTaskAttachment(accessToken!, task.id, file.id),
+                      "Unable to delete task file.",
+                    )}
+                    style={styles.inlineTrash}
+                  >
+                    <Trash2 color={colors.danger} size={16} strokeWidth={2.4} />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <EmptyPanel text="No files yet. Link a document, image, or provider URL." />
+          )}
+        </ContentCard>
+
         <ContentCard
           icon={<MessageSquare color={colors.accent} size={17} strokeWidth={2.5} />}
           title="Comments"
@@ -393,7 +1084,23 @@ export function TaskDetailScreen({ returnTo, taskId }: { returnTo?: string; task
                     <View style={styles.commentBubble}>
                       <View style={styles.commentBubbleHeader}>
                         <Text style={styles.commentAuthor}>{name}</Text>
-                        <Text style={styles.commentDate}>{formatShortDate(comment.createdAt)}</Text>
+                        <View style={styles.commentHeaderActions}>
+                          <Text style={styles.commentDate}>{formatShortDate(comment.createdAt)}</Text>
+                          <Pressable
+                            accessibilityRole="button"
+                            onPress={() => confirmDelete(
+                              "Delete comment",
+                              "Remove this task comment?",
+                              () => void runMutation(
+                                () => deleteTaskComment(accessToken!, task.id, comment.id),
+                                "Unable to delete comment.",
+                              ),
+                            )}
+                            style={styles.commentDelete}
+                          >
+                            <Trash2 color={colors.inkSoft} size={14} strokeWidth={2.4} />
+                          </Pressable>
+                        </View>
                       </View>
                       <Text style={styles.commentBody}>{comment.body}</Text>
                     </View>
@@ -407,6 +1114,27 @@ export function TaskDetailScreen({ returnTo, taskId }: { returnTo?: string; task
         </ContentCard>
 
         {/* ── ACTIVITY ── */}
+        <ContentCard icon={<Archive color={colors.accent} size={17} strokeWidth={2.5} />} title="Task controls">
+          <View style={styles.controlStack}>
+            <Pressable accessibilityRole="button" onPress={() => openAction("editTask")} style={styles.controlButton}>
+              <FileText color={colors.foreground} size={17} strokeWidth={2.6} />
+              <Text style={styles.controlButtonText}>Edit task details</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              onPress={task.deletedAt ? () => void runMutation(() => restoreTask(accessToken!, task.id), "Unable to restore task.") : confirmArchive}
+              style={styles.controlButton}
+            >
+              {task.deletedAt ? <RotateCcw color={colors.foreground} size={17} strokeWidth={2.6} /> : <Archive color={colors.foreground} size={17} strokeWidth={2.6} />}
+              <Text style={styles.controlButtonText}>{task.deletedAt ? "Restore task" : "Archive task"}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={confirmDeleteTask} style={[styles.controlButton, styles.controlDanger]}>
+              <Trash2 color={colors.danger} size={17} strokeWidth={2.6} />
+              <Text style={styles.controlDangerText}>Delete task</Text>
+            </Pressable>
+          </View>
+        </ContentCard>
+
         <ContentCard icon={<CalendarDays color={colors.accent} size={17} strokeWidth={2.5} />} title="Activity">
           {data.activities.length ? (
             <View style={styles.timeline}>
@@ -431,6 +1159,7 @@ export function TaskDetailScreen({ returnTo, taskId }: { returnTo?: string; task
           )}
         </ContentCard>
       </ScrollView>
+      {renderActionModal()}
     </SafeAreaView>
   );
 }
@@ -456,14 +1185,51 @@ function priorityAccent(priority: string): string {
   return colors.inkSoft;
 }
 
+function initials(user: TenantUser) {
+  const name = displayUserName(user);
+  return name.split(/\s+/).slice(0, 2).map((part) => part.charAt(0)).join("").toUpperCase() || "U";
+}
+
+function actionTitle(action: Exclude<TaskAction, null>) {
+  const titles: Record<Exclude<TaskAction, null>, string> = {
+    addAssignee: "Add assignee",
+    addAttachment: "Link task file",
+    addChecklist: "Create checklist",
+    addChecklistItem: "Add checklist item",
+    addDependency: "Add dependency",
+    addLabel: "Add label",
+    addWatcher: "Add watcher",
+    createLabel: "Create label",
+    editTask: "Edit task",
+  };
+  return titles[action];
+}
+
+function actionSubtitle(action: Exclude<TaskAction, null>) {
+  const subtitles: Record<Exclude<TaskAction, null>, string> = {
+    addAssignee: "Assign an accountable owner for this task.",
+    addAttachment: "Register a Cloudinary, S3, document, or provider link.",
+    addChecklist: "Track acceptance work without leaving the task.",
+    addChecklistItem: "Add the next small, verifiable step.",
+    addDependency: "Connect this work to a blocker or related task.",
+    addLabel: "Classify the task for filtering and reporting.",
+    addWatcher: "Notify teammates who need progress updates.",
+    createLabel: "Create a reusable workspace label and add it here.",
+    editTask: "Update the task identity, classification, schedule, and effort.",
+  };
+  return subtitles[action];
+}
+
 // ── Sub-components ───────────────────────────────────────────────────────────
 
 function ContentCard({
+  action,
   children,
   count,
   icon,
   title,
 }: {
+  action?: ReactNode;
   children: ReactNode;
   count?: number;
   icon: ReactNode;
@@ -479,6 +1245,7 @@ function ContentCard({
             <Text style={styles.cardBadgeText}>{count}</Text>
           </View>
         )}
+        {action}
       </View>
       {children}
     </View>
@@ -536,6 +1303,76 @@ function DetailRow({ label, last, value }: { label: string; last?: boolean; valu
   );
 }
 
+function SectionAction({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={styles.sectionAction}>
+      <Plus color={colors.black} size={14} strokeWidth={3} />
+      <Text style={styles.sectionActionText}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function EmptyPanel({ text }: { text: string }) {
+  return (
+    <View style={styles.emptyPanel}>
+      <Text style={styles.emptyPanelText}>{text}</Text>
+    </View>
+  );
+}
+
+function PersonRow({ meta, name, onRemove }: { meta?: string | null; name: string; onRemove?: () => void }) {
+  return (
+    <View style={styles.personRow}>
+      <View style={styles.personAvatar}>
+        <Text style={styles.personAvatarText}>{name.slice(0, 1).toUpperCase() || "U"}</Text>
+      </View>
+      <View style={styles.personTextBlock}>
+        <Text numberOfLines={1} style={styles.personName}>{name}</Text>
+        <Text numberOfLines={1} style={styles.personMeta}>{meta ?? "Team member"}</Text>
+      </View>
+      {onRemove ? (
+        <Pressable accessibilityRole="button" onPress={onRemove} style={styles.inlineTrash}>
+          <X color={colors.inkSoft} size={16} strokeWidth={3} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function ManagedInput({
+  label,
+  onChangeText,
+  placeholder,
+  value,
+}: {
+  label: string;
+  onChangeText: (value: string) => void;
+  placeholder: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.managedInputBlock}>
+      <Text style={styles.managedInputLabel}>{label}</Text>
+      <TextInput
+        autoCapitalize="none"
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={colors.inkSoft}
+        style={styles.managedInput}
+        value={value}
+      />
+    </View>
+  );
+}
+
+function PrimaryModalButton({ disabled, label, onPress }: { disabled?: boolean; label: string; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.primaryModalButton, disabled && styles.primaryModalButtonDisabled]}>
+      <Text style={styles.primaryModalButtonText}>{label}</Text>
+    </Pressable>
+  );
+}
+
 function DependencyGroup({ tasks, title }: { tasks: NonNullable<TaskDependency["fromTask"]>[]; title: string }) {
   if (!tasks.length) return null;
   return (
@@ -548,6 +1385,39 @@ function DependencyGroup({ tasks, title }: { tasks: NonNullable<TaskDependency["
           <StatusPill label={humanStatus(t.status)} tone={statusTone(t.status)} />
         </View>
       ))}
+    </View>
+  );
+}
+
+function DependencyGroupManaged({
+  dependencies,
+  direction,
+  onDelete,
+  title,
+}: {
+  dependencies: TaskDependency[];
+  direction: "from" | "to";
+  onDelete: (dependencyId: string) => void;
+  title: string;
+}) {
+  if (!dependencies.length) return null;
+  return (
+    <View style={styles.depGroup}>
+      <Text style={styles.depGroupTitle}>{title}</Text>
+      {dependencies.map((dependency) => {
+        const linkedTask = direction === "from" ? dependency.fromTask : dependency.toTask;
+        if (!isDependencyTask(linkedTask)) return null;
+        return (
+          <View key={dependency.id} style={styles.depRow}>
+            <View style={styles.depDot} />
+            <Text numberOfLines={1} style={styles.depText}>{linkedTask.key} · {linkedTask.title}</Text>
+            <StatusPill label={humanStatus(linkedTask.status)} tone={statusTone(linkedTask.status)} />
+            <Pressable accessibilityRole="button" onPress={() => onDelete(dependency.id)} style={styles.depDelete}>
+              <X color={colors.inkSoft} size={14} strokeWidth={3} />
+            </Pressable>
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -873,4 +1743,252 @@ const styles = StyleSheet.create(withFontStyles({
   timelineBody: { flex: 1, gap: 3, paddingBottom: 16, paddingTop: 1 },
   timelineAction: { color: colors.foreground, fontSize: 14, fontWeight: "800" },
   timelineDate: { color: colors.inkSoft, fontSize: 12, fontWeight: "700" },
+
+  sectionAction: {
+    alignItems: "center",
+    backgroundColor: colors.primary,
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  sectionActionText: { color: colors.black, fontSize: 11, fontWeight: "900" },
+  emptyPanel: {
+    backgroundColor: colors.panelMuted,
+    borderColor: colors.line,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    padding: 14,
+  },
+  emptyPanelText: { color: colors.inkSoft, fontSize: 13, fontWeight: "700", lineHeight: 19 },
+
+  personStack: { gap: 10 },
+  personRow: {
+    alignItems: "center",
+    backgroundColor: colors.panelMuted,
+    borderRadius: radii.lg,
+    flexDirection: "row",
+    gap: 10,
+    padding: 12,
+  },
+  personAvatar: {
+    alignItems: "center",
+    backgroundColor: colors.foreground,
+    borderRadius: 999,
+    height: 34,
+    justifyContent: "center",
+    width: 34,
+  },
+  personAvatarText: { color: colors.white, fontSize: 12, fontWeight: "900" },
+  personTextBlock: { flex: 1, minWidth: 0 },
+  personName: { color: colors.foreground, fontSize: 14, fontWeight: "900" },
+  personMeta: { color: colors.inkSoft, fontSize: 12, fontWeight: "700", marginTop: 2 },
+
+  checklistTitleBlock: { flex: 1, gap: 2, minWidth: 0 },
+  rowActions: { alignItems: "center", flexDirection: "row", gap: 8 },
+  tinyAction: {
+    alignItems: "center",
+    backgroundColor: colors.panelMuted,
+    borderColor: colors.line,
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 30,
+    justifyContent: "center",
+    width: 30,
+  },
+  tinyDangerAction: {
+    alignItems: "center",
+    backgroundColor: colors.redSoft,
+    borderColor: "#fecaca",
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 30,
+    justifyContent: "center",
+    width: 30,
+  },
+  inlineTrash: {
+    alignItems: "center",
+    borderRadius: 999,
+    height: 32,
+    justifyContent: "center",
+    width: 32,
+  },
+  depDelete: {
+    alignItems: "center",
+    backgroundColor: colors.panel,
+    borderRadius: 999,
+    height: 28,
+    justifyContent: "center",
+    width: 28,
+  },
+
+  fileStack: { gap: 10 },
+  fileRow: {
+    alignItems: "center",
+    backgroundColor: colors.panelMuted,
+    borderRadius: radii.lg,
+    flexDirection: "row",
+    gap: 10,
+    padding: 12,
+  },
+  fileIcon: {
+    alignItems: "center",
+    backgroundColor: colors.blueSoft,
+    borderRadius: radii.md,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
+  },
+  fileInfo: { flex: 1, minWidth: 0 },
+  fileName: { color: colors.foreground, fontSize: 14, fontWeight: "900" },
+  fileMeta: { color: colors.inkSoft, fontSize: 12, fontWeight: "700", marginTop: 2 },
+
+  commentHeaderActions: { alignItems: "center", flexDirection: "row", gap: 8 },
+  commentDelete: {
+    alignItems: "center",
+    borderRadius: 999,
+    height: 24,
+    justifyContent: "center",
+    width: 24,
+  },
+
+  controlStack: { gap: 10 },
+  controlButton: {
+    alignItems: "center",
+    backgroundColor: colors.panelMuted,
+    borderColor: colors.line,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    minHeight: 50,
+    paddingHorizontal: 14,
+  },
+  controlButtonText: { color: colors.foreground, fontSize: 14, fontWeight: "900" },
+  controlDanger: { backgroundColor: colors.redSoft, borderColor: "#fecaca" },
+  controlDangerText: { color: colors.danger, fontSize: 14, fontWeight: "900" },
+
+  modalBackdrop: {
+    backgroundColor: "rgba(12, 12, 12, 0.36)",
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: "88%",
+    paddingBottom: 24,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+  },
+  modalHandle: {
+    alignSelf: "center",
+    backgroundColor: colors.line,
+    borderRadius: 999,
+    height: 4,
+    marginBottom: 16,
+    width: 44,
+  },
+  modalHeader: { alignItems: "flex-start", flexDirection: "row", gap: 12, justifyContent: "space-between" },
+  modalEyebrow: { color: colors.accent, fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" },
+  modalTitle: { color: colors.foreground, fontSize: 24, fontWeight: "900", letterSpacing: -0.3, marginTop: 2 },
+  modalSubtitle: { color: colors.inkSoft, fontSize: 13, fontWeight: "700", lineHeight: 19, marginTop: 3, maxWidth: 280 },
+  modalClose: {
+    alignItems: "center",
+    backgroundColor: colors.panel,
+    borderColor: colors.line,
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  modalBody: { gap: 14, paddingBottom: 20, paddingTop: 18 },
+  managedInputBlock: { gap: 8 },
+  managedInputLabel: { color: colors.foreground, fontSize: 13, fontWeight: "900" },
+  managedInput: {
+    backgroundColor: colors.panel,
+    borderColor: colors.line,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    color: colors.foreground,
+    fontSize: 15,
+    fontWeight: "800",
+    minHeight: 52,
+    paddingHorizontal: 16,
+  },
+  managedTextArea: { minHeight: 118, paddingTop: 14, textAlignVertical: "top" },
+  modalTwoCol: { flexDirection: "row", gap: 12 },
+  primaryModalButton: {
+    alignItems: "center",
+    backgroundColor: colors.primary,
+    borderRadius: radii.xl,
+    minHeight: 54,
+    justifyContent: "center",
+    paddingHorizontal: 18,
+  },
+  primaryModalButtonDisabled: { opacity: 0.45 },
+  primaryModalButtonText: { color: colors.black, fontSize: 15, fontWeight: "900" },
+  optionStack: { gap: 9 },
+  optionRow: {
+    alignItems: "center",
+    backgroundColor: colors.panel,
+    borderColor: colors.line,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    minHeight: 58,
+    paddingHorizontal: 12,
+  },
+  optionRowDisabled: { opacity: 0.55 },
+  optionAvatar: {
+    alignItems: "center",
+    backgroundColor: colors.foreground,
+    borderRadius: 999,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
+  },
+  optionAvatarText: { color: colors.white, fontSize: 12, fontWeight: "900" },
+  optionTextBlock: { flex: 1, minWidth: 0 },
+  optionTitle: { color: colors.foreground, flex: 1, fontSize: 14, fontWeight: "900" },
+  optionMeta: { color: colors.inkSoft, fontSize: 12, fontWeight: "700", marginTop: 2 },
+  optionAddText: { color: colors.accent, fontSize: 12, fontWeight: "900" },
+  optionSelectedText: { color: colors.inkSoft, fontSize: 12, fontWeight: "900" },
+  createInline: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: colors.primary,
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 7,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  createInlineText: { color: colors.black, fontSize: 13, fontWeight: "900" },
+  labelSwatch: { borderRadius: 999, height: 16, width: 16 },
+  optionTaskKey: {
+    alignItems: "center",
+    backgroundColor: colors.blueSoft,
+    borderRadius: radii.md,
+    minWidth: 48,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+  },
+  optionTaskKeyText: { color: colors.accent, fontSize: 11, fontWeight: "900" },
+  typeRail: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  typeChip: {
+    backgroundColor: colors.panel,
+    borderColor: colors.line,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+  },
+  typeChipActive: { backgroundColor: colors.foreground, borderColor: colors.foreground },
+  typeChipText: { color: colors.inkSoft, fontSize: 12, fontWeight: "900" },
+  typeChipTextActive: { color: colors.white },
 }));
