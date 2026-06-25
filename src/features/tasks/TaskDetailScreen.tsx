@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import * as DocumentPicker from "expo-document-picker";
 import { ActivityIndicator, Alert, Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, type Href } from "expo-router";
@@ -19,6 +20,7 @@ import {
   ShieldAlert,
   Tag,
   Trash2,
+  Upload,
   Users,
   X,
 } from "lucide-react-native";
@@ -29,11 +31,13 @@ import {
   archiveTask,
   assignTaskLabel,
   createLabel,
+  createFileAsset,
   createTaskAttachment,
   createTaskChecklist,
   createTaskChecklistItem,
   createTaskComment,
   createTaskDependency,
+  createUploadIntent,
   deleteTask,
   deleteTaskAttachment,
   deleteTaskChecklist,
@@ -74,6 +78,7 @@ import type {
   TaskLabelAssignment,
   TaskWatcher,
   TenantUser,
+  UploadIntent,
 } from "@/lib/types";
 import {
   displayUserName,
@@ -113,6 +118,13 @@ type DraftState = {
   text: string;
   title: string;
   type: Task["type"];
+};
+
+type PickedAsset = {
+  mimeType?: string | null;
+  name: string;
+  size?: number | null;
+  uri: string;
 };
 
 type TaskDetailData = {
@@ -332,6 +344,60 @@ export function TaskDetailScreen({ returnTo, taskId }: { returnTo?: string; task
       "Unable to link task file.",
       true,
     );
+  }
+
+  async function handlePickAndUploadAttachment() {
+    if (!accessToken || !task) return;
+    setSaving(true);
+    setError("");
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: true, type: "*/*" });
+      if (result.canceled) return;
+      const assets: PickedAsset[] = result.assets.map((asset) => ({
+        mimeType: asset.mimeType,
+        name: asset.name,
+        size: asset.size,
+        uri: asset.uri,
+      }));
+      for (const asset of assets) {
+        const intent = await createUploadIntent(accessToken, {
+          entityId: task.id,
+          entityType: "TASK",
+          fileName: asset.name,
+          mimeType: asset.mimeType ?? undefined,
+          scope: "TASK",
+          sizeBytes: asset.size ?? undefined,
+          visibility: "TEAM",
+        });
+        const uploadedUrl = await uploadPickedTaskAsset(intent, asset);
+        const fileUrl = uploadedUrl || intent.fileUrl;
+        await createTaskAttachment(accessToken, task.id, {
+          fileName: asset.name,
+          fileUrl,
+          mimeType: asset.mimeType ?? undefined,
+          sizeBytes: asset.size ?? undefined,
+        });
+        if (/^https?:\/\//i.test(fileUrl)) {
+          void createFileAsset(accessToken, {
+            entityId: task.id,
+            entityType: "TASK",
+            fileName: asset.name,
+            fileUrl,
+            mimeType: asset.mimeType ?? undefined,
+            provider: intent.provider,
+            scope: "TASK",
+            sizeBytes: asset.size ?? undefined,
+            storageKey: intent.storageKey,
+            visibility: intent.visibility,
+          }).catch(() => undefined);
+        }
+      }
+      await load(true);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to upload task file.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleCreateLabelAndAssign() {
@@ -1014,7 +1080,12 @@ export function TaskDetailScreen({ returnTo, taskId }: { returnTo?: string; task
         </ContentCard>
 
         <ContentCard
-          action={<SectionAction label="Link" onPress={() => openAction("addAttachment")} />}
+          action={(
+            <View style={styles.headerActions}>
+              <SectionAction icon={<Upload color={colors.black} size={14} strokeWidth={3} />} label="Upload" onPress={() => void handlePickAndUploadAttachment()} />
+              <SectionAction label="Link" onPress={() => openAction("addAttachment")} />
+            </View>
+          )}
           icon={<Paperclip color={colors.accent} size={17} strokeWidth={2.5} />}
           title="Task files"
           count={data.attachments.length}
@@ -1222,6 +1293,26 @@ function actionSubtitle(action: Exclude<TaskAction, null>) {
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
+async function uploadPickedTaskAsset(intent: UploadIntent, asset: PickedAsset) {
+  if (!intent.uploadUrl) return undefined;
+  if (intent.method === "POST") {
+    const form = new FormData();
+    Object.entries(intent.fields).forEach(([key, value]) => form.append(key, String(value)));
+    form.append("file", { name: asset.name, type: asset.mimeType || "application/octet-stream", uri: asset.uri } as unknown as Blob);
+    const response = await fetch(intent.uploadUrl, { body: form, method: "POST" });
+    if (!response.ok) throw new Error("Upload provider rejected the file.");
+    const payload = await response.json().catch(() => undefined);
+    if (payload && typeof payload === "object" && "secure_url" in payload && typeof payload.secure_url === "string") return payload.secure_url;
+    if (payload && typeof payload === "object" && "url" in payload && typeof payload.url === "string") return payload.url;
+    return undefined;
+  }
+  const fileResponse = await fetch(asset.uri);
+  const blob = await fileResponse.blob();
+  const response = await fetch(intent.uploadUrl, { body: blob, headers: intent.headers as Record<string, string>, method: intent.method });
+  if (!response.ok) throw new Error("Upload provider rejected the file.");
+  return undefined;
+}
+
 function ContentCard({
   action,
   children,
@@ -1303,10 +1394,10 @@ function DetailRow({ label, last, value }: { label: string; last?: boolean; valu
   );
 }
 
-function SectionAction({ label, onPress }: { label: string; onPress: () => void }) {
+function SectionAction({ icon, label, onPress }: { icon?: ReactNode; label: string; onPress: () => void }) {
   return (
     <Pressable accessibilityRole="button" onPress={onPress} style={styles.sectionAction}>
-      <Plus color={colors.black} size={14} strokeWidth={3} />
+      {icon ?? <Plus color={colors.black} size={14} strokeWidth={3} />}
       <Text style={styles.sectionActionText}>{label}</Text>
     </Pressable>
   );
@@ -1754,6 +1845,7 @@ const styles = StyleSheet.create(withFontStyles({
     paddingVertical: 6,
   },
   sectionActionText: { color: colors.black, fontSize: 11, fontWeight: "900" },
+  headerActions: { alignItems: "center", flexDirection: "row", gap: 8 },
   emptyPanel: {
     backgroundColor: colors.panelMuted,
     borderColor: colors.line,
