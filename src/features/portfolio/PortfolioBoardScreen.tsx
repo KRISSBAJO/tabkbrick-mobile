@@ -92,6 +92,7 @@ import {
   type BoardAiApplyResponse,
   type BoardAiRiskScanResponse,
   type BoardAiSummaryResponse,
+  type TeamInviteResult,
 } from "@/lib/api";
 import { useAuthSession } from "@/lib/auth/AuthSessionProvider";
 import { colors, radii, shadow } from "@/lib/theme/tokens";
@@ -1552,15 +1553,15 @@ function TeamView({
     setSavingTeam(true);
     setMessage(null);
     try {
-      await inviteTeamMember(accessToken, selectedTeam.id, {
+      const result = await inviteTeamMember(accessToken, selectedTeam.id, {
         email: inviteForm.email.trim(),
         firstName: inviteForm.firstName.trim(),
         lastName: inviteForm.lastName.trim(),
         roleIds: inviteForm.roleIds,
         teamRole: inviteForm.teamRole,
-      });
+      }) as TeamInviteResult;
       setInviteForm({ email: "", firstName: "", lastName: "", roleIds: [], teamRole: "Member" });
-      setMessage({ ok: true, text: "Invite sent and user added to the team." });
+      setMessage({ ok: result.deliveryStatus?.status !== "failed", text: describeInviteDelivery(result) });
       await Promise.all([loadMembers(selectedTeam.id), loadDirectory()]);
     } catch (caught) {
       setMessage({ ok: false, text: caught instanceof Error ? caught.message : "Unable to invite team member." });
@@ -1590,14 +1591,14 @@ function TeamView({
     setSavingTeam(true);
     setMessage(null);
     try {
-      await inviteTenantUser(accessToken, {
+      const result = await inviteTenantUser(accessToken, {
         email: tenantInviteForm.email.trim(),
         firstName: tenantInviteForm.firstName.trim(),
         lastName: tenantInviteForm.lastName.trim(),
         roleIds: tenantInviteForm.roleIds,
-      });
+      }) as TeamInviteResult;
       setTenantInviteForm({ email: "", firstName: "", lastName: "", roleIds: [] });
-      setMessage({ ok: true, text: "Tenant user invited." });
+      setMessage({ ok: result.deliveryStatus?.status !== "failed", text: describeInviteDelivery(result, "Tenant user invited.") });
       await loadDirectory();
     } catch (caught) {
       setMessage({ ok: false, text: caught instanceof Error ? caught.message : "Unable to invite tenant user." });
@@ -1680,8 +1681,8 @@ function TeamView({
     try {
       const result = await resendTeamMemberInvite(accessToken, selectedTeam.id, member.userId);
       setMessage({
-        ok: true,
-        text: result.delivery === "in_app" ? "Existing user notified in the app." : "Invite email sent again.",
+        ok: result.deliveryStatus?.status !== "failed",
+        text: describeInviteDelivery(result),
       });
     } catch (caught) {
       setMessage({ ok: false, text: caught instanceof Error ? caught.message : "Unable to resend invitation." });
@@ -3080,6 +3081,18 @@ function priorityRank(priority: string) {
 function displayUser(user: { email?: string; firstName?: string; lastName?: string }) {
   const name = `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
   return name || user.email || "Unknown member";
+}
+
+function describeInviteDelivery(result?: TeamInviteResult, fallback = "Invite created and user added.") {
+  const delivery = result?.deliveryStatus;
+  if (!delivery) return fallback;
+  if (delivery.channel === "in_app") return "Existing user notified in the app.";
+  if (delivery.channel === "none") return delivery.message || fallback;
+  if (delivery.status === "sent") return "Invite email sent.";
+  if (delivery.status === "skipped") {
+    return `Invite created, but email delivery is disabled${delivery.provider ? ` (${delivery.provider})` : ""}. Configure mail and use Resend.`;
+  }
+  return `Invite created, but email delivery failed${delivery.provider ? ` via ${delivery.provider}` : ""}${delivery.error ? `: ${delivery.error}` : "."}`;
 }
 
 function initials(value: string) {

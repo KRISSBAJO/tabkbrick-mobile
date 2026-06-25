@@ -5,6 +5,20 @@ type ListTeamsQuery = OpenApiQuery<"/api/v1/teams", "get">;
 export type CreateTeamPayload = OpenApiJsonBody<"/api/v1/teams", "post">;
 export type AddTeamMemberPayload = OpenApiJsonBody<"/api/v1/teams/{teamId}/members", "post">;
 export type InviteTeamMemberPayload = OpenApiJsonBody<"/api/v1/teams/{teamId}/invite", "post">;
+export type TeamInviteDeliveryStatus = {
+  channel: "email" | "in_app" | "none";
+  error?: string;
+  message: string;
+  provider?: string;
+  skipped?: boolean;
+  status: "sent" | "skipped" | "failed";
+};
+export type TeamInviteResult<TMember = unknown> = {
+  delivery?: "email" | "in_app" | "none";
+  deliveryStatus?: TeamInviteDeliveryStatus;
+  member?: TMember;
+  success?: boolean;
+};
 
 export function listWorkspaces(token: string, query: ListWorkspacesQuery = {}) {
   return openApiRequest("/api/v1/workspaces", "get", {
@@ -72,7 +86,7 @@ export function removeTeamMember(token: string, teamId: string, userId: string) 
 }
 
 export function resendTeamMemberInvite(token: string, teamId: string, userId: string) {
-  return apiRequest<{ delivery: "email" | "in_app" | "none"; success: boolean }>(
+  return apiRequest<TeamInviteResult & { success: boolean }>(
     `/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(userId)}/resend-invite`,
     {
       method: "POST",
