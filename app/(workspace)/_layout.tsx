@@ -99,6 +99,7 @@ export default function WorkspaceTabsLayout() {
         <Tabs.Screen name="account-workspaces"    options={{ href: null, title: "Your workspaces" }} />
         <Tabs.Screen name="guest-workspaces"      options={{ href: null, title: "Guest workspaces" }} />
         <Tabs.Screen name="manage-account"        options={{ href: null, title: "Manage account" }} />
+        <Tabs.Screen name="security-center"       options={{ href: null, title: "Security center" }} />
         <Tabs.Screen name="help-support"          options={{ href: null, title: "Help and support" }} />
         <Tabs.Screen name="sprints/index"         options={{ title: "Sprints", tabBarIcon: ({ color }) => <Flag color={color} size={20} /> }} />
         <Tabs.Screen name="meetings"              options={{ title: "Planner", tabBarIcon: ({ color }) => <CalendarDays color={color} size={20} /> }} />

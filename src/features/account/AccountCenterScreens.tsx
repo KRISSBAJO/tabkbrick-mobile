@@ -19,6 +19,7 @@ import {
   BriefcaseBusiness,
   CheckCircle2,
   ChevronLeft,
+  History,
   HelpCircle,
   KeyRound,
   Laptop,
@@ -42,9 +43,11 @@ import {
   getAccountHelp,
   getAccountOverview,
   getIdentitySecurityOverview,
+  listAdminSessions,
   listAccountWorkspaces,
   listGuestWorkspaces,
   regenerateBackupCodes,
+  revokeAdminSession,
   revokeTrustedDevice,
   setupTotp,
   type AccountHelp,
@@ -56,7 +59,7 @@ import {
 import { useAuthSession } from "@/lib/auth/AuthSessionProvider";
 import { withFontStyles } from "@/lib/theme/fontDefaults";
 import { colors, radii, shadow } from "@/lib/theme/tokens";
-import type { IdentitySecurityOverview } from "@/lib/types";
+import type { AuthSession, IdentitySecurityOverview } from "@/lib/types";
 
 type LoadState = {
   error: string;
@@ -225,6 +228,8 @@ export function ManageAccountScreen() {
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
   const [revokeOtherSessions, setRevokeOtherSessions] = useState(true);
   const [savingPassword, setSavingPassword] = useState(false);
+  const [sessionNote, setSessionNote] = useState("");
+  const [sessions, setSessions] = useState<AuthSession[]>([]);
   const [state, setState] = useState(initialLoadState);
   const [totpSetup, setTotpSetup] = useState<Awaited<ReturnType<typeof setupTotp>> | null>(null);
 
@@ -238,6 +243,18 @@ export function ManageAccountScreen() {
       ]);
       setOverview(nextOverview);
       setIdentity(nextIdentity);
+      try {
+        const page = await listAdminSessions(accessToken, {
+          activeOnly: true,
+          limit: 20,
+          userId: user?.id,
+        });
+        setSessions(page.data);
+        setSessionNote("");
+      } catch {
+        setSessions([]);
+        setSessionNote("Detailed session controls require tenant security permissions.");
+      }
       setState({ error: "", loading: false, refreshing: false });
     } catch (caught) {
       setState({
@@ -246,7 +263,7 @@ export function ManageAccountScreen() {
         refreshing: false,
       });
     }
-  }, [accessToken]);
+  }, [accessToken, user?.id]);
 
   useEffect(() => {
     void load();
@@ -393,6 +410,31 @@ export function ManageAccountScreen() {
     }
   }
 
+  function onRevokeSession(session: AuthSession) {
+    Alert.alert(
+      "Revoke session?",
+      `Force logout for ${session.ipAddress ?? "this session"}? The device will need to sign in again.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Revoke",
+          style: "destructive",
+          onPress: () => void revokeSessionConfirmed(session.id),
+        },
+      ],
+    );
+  }
+
+  async function revokeSessionConfirmed(sessionId: string) {
+    if (!accessToken) return;
+    try {
+      await revokeAdminSession(accessToken, sessionId);
+      await load(true);
+    } catch (caught) {
+      Alert.alert("Unable to revoke session", caught instanceof Error ? caught.message : "Try again.");
+    }
+  }
+
   const displayName = `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() || user?.email || "Account";
   const mfaEnabled = identity?.mfa.enabled ?? false;
 
@@ -403,8 +445,8 @@ export function ManageAccountScreen() {
         loading={state.loading}
         onRefresh={() => void load(true)}
         refreshing={state.refreshing}
-        subtitle="Profile, password, MFA, sessions, and devices"
-        title="Manage account"
+        subtitle="Profile, password, MFA, login history, and trusted devices"
+        title="Security center"
       >
         <View style={styles.accountHero}>
           <View style={styles.accountAvatar}>
@@ -588,6 +630,35 @@ export function ManageAccountScreen() {
           </View>
         </Card>
 
+        <Card title="Active sessions" icon={<ShieldCheck color={colors.primaryDark} size={18} strokeWidth={2.6} />}>
+          <View style={styles.stack}>
+            {sessions.map((session) => (
+              <View key={session.id} style={styles.sessionRow}>
+                <View style={styles.sessionIcon}>
+                  <ShieldCheck color={session.revokedAt ? colors.inkSoft : colors.success} size={17} strokeWidth={2.5} />
+                </View>
+                <View style={styles.flex}>
+                  <Text numberOfLines={1} style={styles.sessionTitle}>{session.ipAddress ?? "Unknown IP"}</Text>
+                  <Text numberOfLines={1} style={styles.sessionMeta}>
+                    Created {shortDateTime(session.createdAt)} - expires {shortDateTime(session.expiresAt)}
+                  </Text>
+                  {session.userAgent ? <Text numberOfLines={1} style={styles.sessionAgent}>{session.userAgent}</Text> : null}
+                </View>
+                {!session.revokedAt ? (
+                  <Pressable accessibilityRole="button" onPress={() => onRevokeSession(session)} style={styles.revokeButton}>
+                    <Text style={styles.revokeText}>Revoke</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ))}
+            {!sessions.length ? (
+              <Text style={styles.mutedText}>
+                {sessionNote || "No active sessions were returned for this account."}
+              </Text>
+            ) : null}
+          </View>
+        </Card>
+
         <Card title="Trusted devices" icon={<Laptop color={colors.accent} size={18} strokeWidth={2.6} />}>
           <View style={styles.stack}>
             {(identity?.trustedDevices ?? []).map((device) => (
@@ -608,6 +679,32 @@ export function ManageAccountScreen() {
             ))}
             {!identity?.trustedDevices.length ? (
               <Text style={styles.mutedText}>No trusted devices are attached to this account yet.</Text>
+            ) : null}
+          </View>
+        </Card>
+
+        <Card title="Recent login history" icon={<History color={colors.primaryDark} size={18} strokeWidth={2.6} />}>
+          <View style={styles.stack}>
+            {(identity?.loginHistory ?? []).slice(0, 8).map((entry) => (
+              <View key={entry.id} style={styles.loginRow}>
+                <View style={[styles.loginStatusDot, { backgroundColor: loginStatusColor(entry.status, entry.suspicious) }]} />
+                <View style={styles.flex}>
+                  <View style={styles.loginTitleRow}>
+                    <Text numberOfLines={1} style={styles.loginTitle}>{humanize(entry.method || "sign in")}</Text>
+                    <Text style={[styles.loginStatus, { color: loginStatusColor(entry.status, entry.suspicious) }]}>
+                      {entry.suspicious ? "Suspicious" : humanize(entry.status)}
+                    </Text>
+                  </View>
+                  <Text numberOfLines={1} style={styles.loginMeta}>
+                    {shortDateTime(entry.createdAt)} - {entry.ipAddress ?? "Unknown IP"}
+                  </Text>
+                  {entry.reason ? <Text numberOfLines={2} style={styles.loginReason}>{entry.reason}</Text> : null}
+                  {entry.userAgent ? <Text numberOfLines={1} style={styles.loginAgent}>{entry.userAgent}</Text> : null}
+                </View>
+              </View>
+            ))}
+            {!identity?.loginHistory.length ? (
+              <Text style={styles.mutedText}>No recent login history was returned for this account.</Text>
             ) : null}
           </View>
         </Card>
@@ -1009,6 +1106,27 @@ function shortDate(value?: string | null) {
   }
 }
 
+function shortDateTime(value?: string | null) {
+  if (!value) return "n/a";
+  try {
+    return new Intl.DateTimeFormat("en", {
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      month: "short",
+    }).format(new Date(value));
+  } catch {
+    return "n/a";
+  }
+}
+
+function loginStatusColor(status: string, suspicious: boolean) {
+  if (suspicious) return colors.danger;
+  if (/success|ok|pass/i.test(status)) return colors.success;
+  if (/fail|error|denied|blocked/i.test(status)) return colors.danger;
+  return colors.warning;
+}
+
 const styles = StyleSheet.create(withFontStyles({
   accountAvatar: {
     alignItems: "center",
@@ -1349,6 +1467,58 @@ const styles = StyleSheet.create(withFontStyles({
     fontSize: 13,
     fontWeight: "900",
   },
+  loginAgent: {
+    color: colors.inkSoft,
+    fontSize: 10,
+    fontWeight: "700",
+    marginTop: 3,
+  },
+  loginMeta: {
+    color: colors.inkSoft,
+    fontSize: 11,
+    fontWeight: "800",
+    marginTop: 3,
+  },
+  loginReason: {
+    color: colors.foreground,
+    fontSize: 11,
+    fontWeight: "800",
+    lineHeight: 16,
+    marginTop: 5,
+  },
+  loginRow: {
+    alignItems: "flex-start",
+    backgroundColor: colors.background,
+    borderColor: colors.line,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 11,
+    padding: 12,
+  },
+  loginStatus: {
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  loginStatusDot: {
+    borderRadius: 999,
+    height: 10,
+    marginTop: 5,
+    width: 10,
+  },
+  loginTitle: {
+    color: colors.foreground,
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  loginTitleRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
   metricDivider: {
     backgroundColor: colors.line,
     bottom: 13,
@@ -1509,6 +1679,41 @@ const styles = StyleSheet.create(withFontStyles({
     fontSize: 14,
     fontWeight: "800",
     height: 54,
+  },
+  sessionAgent: {
+    color: colors.inkSoft,
+    fontSize: 10,
+    fontWeight: "700",
+    marginTop: 4,
+  },
+  sessionIcon: {
+    alignItems: "center",
+    backgroundColor: colors.greenSoft,
+    borderRadius: 13,
+    height: 38,
+    justifyContent: "center",
+    width: 38,
+  },
+  sessionMeta: {
+    color: colors.inkSoft,
+    fontSize: 11,
+    fontWeight: "800",
+    marginTop: 3,
+  },
+  sessionRow: {
+    alignItems: "center",
+    backgroundColor: colors.background,
+    borderColor: colors.line,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    padding: 12,
+  },
+  sessionTitle: {
+    color: colors.foreground,
+    fontSize: 13,
+    fontWeight: "900",
   },
   sectionMeta: {
     color: colors.accent,

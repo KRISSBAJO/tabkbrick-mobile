@@ -3,6 +3,7 @@ import type { components } from "@/lib/generated/openapi";
 type Schemas = components["schemas"];
 
 export type AuthResponse = Schemas["AuthResponse"];
+export type AuthSession = Schemas["AuthSession"];
 export type AuthUser = Schemas["AuthUser"];
 export type AnalyticsOverview = Schemas["AnalyticsOverview"];
 export type ApiKey = Schemas["ApiKey"];

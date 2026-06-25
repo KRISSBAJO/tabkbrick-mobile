@@ -204,9 +204,9 @@ export default function ProfileScreen() {
             icon={ShieldCheck}
             iconTint={colors.yellowSoft}
             iconColor={colors.primaryDark}
-            label="Manage account"
-            onPress={() => router.push("/(workspace)/manage-account")}
-            subtitle={`${user.permissions.length} permissions active`}
+            label="Security center"
+            onPress={() => router.push("/(workspace)/security-center")}
+            subtitle="Password, MFA, login history, devices"
           />
           <SettingsRow
             icon={PlugZap}
