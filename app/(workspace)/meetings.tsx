@@ -1,3 +1,3 @@
-import { PlannerScreen } from "@/features/planner/PlannerScreen";
+import { MeetingEngineScreen } from "@/features/meetings/MeetingEngineScreen";
 
-export default PlannerScreen;
+export default MeetingEngineScreen;
