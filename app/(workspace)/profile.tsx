@@ -53,6 +53,7 @@ export default function ProfileScreen() {
     || user.email.slice(0, 2).toUpperCase();
   const avatarBg = avatarColor(name);
   const canManageAi = hasAiManagerAccess(user);
+  const workspaceMail = user.internalEmail ?? user.internalMailbox?.address ?? null;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -85,7 +86,8 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.heroCopy}>
               <Text numberOfLines={1} style={styles.heroName}>{name}</Text>
-              <Text numberOfLines={1} style={styles.heroEmail}>{user.email}</Text>
+              <Text numberOfLines={1} style={styles.heroWorkspaceMail}>{workspaceMail ?? "Creating workspace mail..."}</Text>
+              <Text numberOfLines={1} style={styles.heroEmail}>Login: {user.email}</Text>
             </View>
           </View>
 
@@ -444,8 +446,13 @@ const styles = StyleSheet.create(withFontStyles({
   },
   heroEmail: {
     color: colors.inkSoft,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
+  },
+  heroWorkspaceMail: {
+    color: colors.foreground,
+    fontSize: 13,
+    fontWeight: "900",
   },
   rolePills: {
     flexDirection: "row",

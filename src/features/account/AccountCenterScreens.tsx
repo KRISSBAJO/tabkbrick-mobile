@@ -437,6 +437,7 @@ export function ManageAccountScreen() {
 
   const displayName = `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() || user?.email || "Account";
   const mfaEnabled = identity?.mfa.enabled ?? false;
+  const workspaceMail = user?.internalEmail ?? user?.internalMailbox?.address ?? null;
 
   return (
     <>
@@ -454,7 +455,8 @@ export function ManageAccountScreen() {
           </View>
           <View style={styles.flex}>
             <Text numberOfLines={1} style={styles.accountName}>{displayName}</Text>
-            <Text numberOfLines={1} style={styles.accountEmail}>{user?.email}</Text>
+            <Text numberOfLines={1} style={styles.accountWorkspaceMail}>{workspaceMail ?? "Creating workspace mail..."}</Text>
+            <Text numberOfLines={1} style={styles.accountEmail}>Login: {user?.email}</Text>
           </View>
           <Pressable accessibilityRole="button" onPress={() => setProfileEditorOpen(true)} style={styles.smallDarkButton}>
             <Text style={styles.smallDarkButtonText}>Edit</Text>
@@ -1143,8 +1145,14 @@ const styles = StyleSheet.create(withFontStyles({
   },
   accountEmail: {
     color: colors.inkSoft,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
+  },
+  accountWorkspaceMail: {
+    color: colors.foreground,
+    fontSize: 12,
+    fontWeight: "900",
+    marginTop: 2,
   },
   accountHero: {
     alignItems: "center",

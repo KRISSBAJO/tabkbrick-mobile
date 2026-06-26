@@ -4708,6 +4708,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/internal-mail/mailboxes/{mailboxId}/regenerate-address": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Regenerate a tenant internal mailbox primary address and keep the previous address as an alias */
+        post: operations["InternalMail_regenerateMailboxAddress"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/internal-mail/mailboxes/{mailboxId}/members": {
         parameters: {
             query?: never;
@@ -4789,6 +4806,23 @@ export interface paths {
         put?: never;
         /** Reply to an internal mail thread */
         post: operations["InternalMail_reply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal-mail/threads/{threadId}/send-draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send an existing internal mail draft */
+        post: operations["InternalMail_sendDraft"];
         delete?: never;
         options?: never;
         head?: never;
@@ -9703,6 +9737,8 @@ export interface components {
         AuthUser: {
             avatarUrl?: string | null;
             email: string;
+            internalEmail?: string | null;
+            internalMailbox?: components["schemas"]["InternalMailboxIdentity"] | null;
             firstName: string;
             id: string;
             isPlatformAdmin?: boolean;
@@ -10382,6 +10418,13 @@ export interface components {
             tenantId: string;
             unread: boolean;
             updatedAt: string;
+        };
+        InternalMailboxIdentity: {
+            address: string;
+            displayName: string;
+            id: string;
+            localPart: string;
+            status: string;
         };
         InternalMailbox: {
             address: string;
@@ -13881,6 +13924,8 @@ export interface components {
         UserSummary: {
             avatarUrl?: string | null;
             email: string;
+            internalEmail?: string | null;
+            internalMailbox?: components["schemas"]["InternalMailboxIdentity"] | null;
             firstName: string;
             id: string;
             lastName: string;
@@ -14312,6 +14357,8 @@ export interface components {
             id: string;
             tenantId: string;
             email: string;
+            internalEmail?: Record<string, never> | null;
+            internalMailbox?: Record<string, never> | null;
             firstName: string;
             lastName: string;
             status: string;
@@ -15134,6 +15181,15 @@ export interface components {
             localPart?: string;
             address?: string;
             isPrimary?: boolean;
+        };
+        RegenerateInternalMailboxAddressDto: {
+            /** @description Optional local part to use for the regenerated primary internal address. */
+            localPart?: string;
+            /**
+             * @description Keep the previous primary address as an active alias so old references still resolve.
+             * @default true
+             */
+            keepPreviousAsAlias?: boolean;
         };
         UpsertInternalMailboxMemberDto: {
             userId: string;
@@ -25640,6 +25696,32 @@ export interface operations {
             };
         };
     };
+    InternalMail_regenerateMailboxAddress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mailboxId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegenerateInternalMailboxAddressDto"];
+            };
+        };
+        responses: {
+            /** @description Regenerated mailbox identity */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalMailbox"];
+                };
+            };
+        };
+    };
     InternalMail_upsertMailboxMember: {
         parameters: {
             query?: never;
@@ -25816,6 +25898,26 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["InternalMailThread"];
                 };
+            };
+        };
+    };
+    InternalMail_sendDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                threadId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Draft sent as an internal mail thread */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

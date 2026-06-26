@@ -137,6 +137,7 @@ export function ProfileEditModal({ onClose, visible }: ProfileEditModalProps) {
                 draft={draft}
                 email={user.email}
                 initials={initials}
+                internalEmail={user.internalEmail ?? user.internalMailbox?.address ?? null}
                 onChange={patch}
               />
             ) : (
@@ -181,11 +182,13 @@ function IdentityStep({
   draft,
   email,
   initials,
+  internalEmail,
   onChange,
 }: {
   draft: ProfileDraft;
   email: string;
   initials: string;
+  internalEmail?: string | null;
   onChange: (next: Partial<ProfileDraft>) => void;
 }) {
   return (
@@ -200,7 +203,7 @@ function IdentityStep({
         </View>
         <View style={styles.avatarText}>
           <Text style={styles.avatarTitle}>{draft.firstName || "Your"} {draft.lastName || "profile"}</Text>
-          <Text numberOfLines={1} style={styles.avatarEmail}>{email}</Text>
+          <Text numberOfLines={1} style={styles.avatarEmail}>{internalEmail ?? email}</Text>
         </View>
       </View>
       <View style={styles.nameGrid}>
@@ -235,7 +238,14 @@ function IdentityStep({
       <View style={styles.readOnlyField}>
         <Mail color={colors.inkSoft} size={18} strokeWidth={2.5} />
         <View style={styles.readOnlyText}>
-          <Text style={styles.readOnlyLabel}>Email address</Text>
+          <Text style={styles.readOnlyLabel}>Workspace mail</Text>
+          <Text numberOfLines={1} style={styles.readOnlyValue}>{internalEmail ?? "Creating workspace mail..."}</Text>
+        </View>
+      </View>
+      <View style={styles.readOnlyField}>
+        <Mail color={colors.inkSoft} size={18} strokeWidth={2.5} />
+        <View style={styles.readOnlyText}>
+          <Text style={styles.readOnlyLabel}>Login email</Text>
           <Text numberOfLines={1} style={styles.readOnlyValue}>{email}</Text>
         </View>
       </View>

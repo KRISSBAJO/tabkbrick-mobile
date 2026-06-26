@@ -2080,7 +2080,8 @@ function TeamView({
                       <View style={styles.memberAvatar}><Text style={styles.memberAvatarText}>{initials(displayUser(tenantUser))}</Text></View>
                       <View style={styles.memberBody}>
                         <Text numberOfLines={1} style={styles.memberName}>{displayUser(tenantUser)}</Text>
-                        <Text numberOfLines={1} style={styles.memberMeta}>{tenantUser.email} - {tenantUser.status}</Text>
+                        <Text numberOfLines={1} style={styles.memberMeta}>Mail: {userWorkspaceMail(tenantUser)}</Text>
+                        <Text numberOfLines={1} style={styles.memberMeta}>Login: {tenantUser.email} - {tenantUser.status}</Text>
                       </View>
                     </Pressable>
                   );
@@ -2111,7 +2112,8 @@ function TeamView({
                     <View style={styles.memberAvatar}><Text style={styles.memberAvatarText}>{initials(displayUser(tenantUser))}</Text></View>
                     <View style={styles.memberBody}>
                       <Text numberOfLines={1} style={styles.memberName}>{displayUser(tenantUser)}</Text>
-                      <Text numberOfLines={1} style={styles.memberMeta}>{tenantUser.email} - {tenantUser.status} - {tenantUser.roles?.length ?? 0} roles</Text>
+                      <Text numberOfLines={1} style={styles.memberMeta}>Mail: {userWorkspaceMail(tenantUser)}</Text>
+                      <Text numberOfLines={1} style={styles.memberMeta}>Login: {tenantUser.email} - {tenantUser.status} - {tenantUser.roles?.length ?? 0} roles</Text>
                     </View>
                   </View>
                 ))}
@@ -2314,7 +2316,8 @@ function TeamMembersTab({
               </View>
               <View style={styles.memberBody}>
                 <Text numberOfLines={1} style={styles.memberName}>{displayUser(member.user)}</Text>
-                <Text numberOfLines={1} style={styles.memberMeta}>{member.user.email} - {member.user.status}</Text>
+                <Text numberOfLines={1} style={styles.memberMeta}>Mail: {userWorkspaceMail(member.user)}</Text>
+                <Text numberOfLines={1} style={styles.memberMeta}>Login: {member.user.email} - {member.user.status}</Text>
               </View>
               <View style={styles.memberRoleBadge}>
                 <Text numberOfLines={1} style={styles.memberRoleBadgeText}>{member.role ?? "Member"}</Text>
@@ -3272,6 +3275,10 @@ function priorityRank(priority: string) {
 function displayUser(user: { email?: string; firstName?: string; lastName?: string }) {
   const name = `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
   return name || user.email || "Unknown member";
+}
+
+function userWorkspaceMail(user: { email?: string; internalEmail?: string | null; internalMailbox?: { address?: string | null } | null }) {
+  return user.internalEmail ?? user.internalMailbox?.address ?? user.email ?? "No mailbox";
 }
 
 function describeInviteDelivery(result?: TeamInviteResult, fallback = "Invite created and user added.") {

@@ -32,6 +32,7 @@ export type Integration = Schemas["Integration"];
 export type IntegrationLog = Schemas["IntegrationLog"];
 export type IntegrationProvider = Schemas["IntegrationProvider"];
 export type IntegrationStatus = Schemas["IntegrationStatus"];
+export type InternalMailboxIdentity = Schemas["InternalMailboxIdentity"];
 export type MfaChallengeResponse = Schemas["MfaChallengeResponse"];
 export type Meeting = Schemas["Meeting"];
 export type BookingPage = Schemas["BookingPage"];

@@ -505,7 +505,8 @@ export function TeamManagementScreen() {
                             <Avatar label={displayUser(tenantUser)} />
                             <View style={styles.flex}>
                               <Text numberOfLines={1} style={styles.memberName}>{displayUser(tenantUser)}</Text>
-                              <Text numberOfLines={1} style={styles.memberMeta}>{tenantUser.email} - {tenantUser.status}</Text>
+                              <Text numberOfLines={1} style={styles.memberMeta}>Mail: {userWorkspaceMail(tenantUser)}</Text>
+                              <Text numberOfLines={1} style={styles.memberMeta}>Login: {tenantUser.email} - {tenantUser.status}</Text>
                             </View>
                           </Pressable>
                         );
@@ -536,7 +537,8 @@ export function TeamManagementScreen() {
                           <Avatar label={displayUser(tenantUser)} />
                           <View style={styles.flex}>
                             <Text numberOfLines={1} style={styles.memberName}>{displayUser(tenantUser)}</Text>
-                            <Text numberOfLines={1} style={styles.memberMeta}>{tenantUser.email} - {tenantUser.status} - {tenantUser.roles?.length ?? 0} roles</Text>
+                            <Text numberOfLines={1} style={styles.memberMeta}>Mail: {userWorkspaceMail(tenantUser)}</Text>
+                            <Text numberOfLines={1} style={styles.memberMeta}>Login: {tenantUser.email} - {tenantUser.status} - {tenantUser.roles?.length ?? 0} roles</Text>
                           </View>
                         </View>
                       ))}
@@ -673,7 +675,8 @@ function MemberCard({
         <Avatar label={displayUser(member.user)} />
         <View style={styles.flex}>
           <Text numberOfLines={1} style={styles.memberName}>{displayUser(member.user)}</Text>
-          <Text numberOfLines={1} style={styles.memberMeta}>{member.user.email} - {member.user.status}</Text>
+          <Text numberOfLines={1} style={styles.memberMeta}>Mail: {userWorkspaceMail(member.user)}</Text>
+          <Text numberOfLines={1} style={styles.memberMeta}>Login: {member.user.email} - {member.user.status}</Text>
         </View>
         {!isInvited ? (
           <Pressable accessibilityRole="button" disabled={saving} onPress={() => onRemove(member)} style={styles.removeBtn}>
@@ -950,6 +953,10 @@ function teamTabs(users: number, members: number): { id: TeamTab; label: string 
 function displayUser(user: { email?: string; firstName?: string; lastName?: string }) {
   const name = `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
   return name || user.email || "Unknown member";
+}
+
+function userWorkspaceMail(user: { email?: string; internalEmail?: string | null; internalMailbox?: { address?: string | null } | null }) {
+  return user.internalEmail ?? user.internalMailbox?.address ?? user.email ?? "No mailbox";
 }
 
 function describeInviteDelivery(result?: TeamInviteResult, fallback = "Invite created and user added.") {
