@@ -40,6 +40,7 @@ import {
   completeSprint,
   createSprintRetrospective,
   createTask,
+  deleteSprint,
   deleteSprintRetrospective,
   getSprintBurndown,
   getSprint,
@@ -229,10 +230,10 @@ export function SprintDetailScreen({ sprintId }: { sprintId: string }) {
     setError("");
     try {
       const updated = await updateSprint(accessToken, sprint.id, {
-        endDate: toNoonIso(sprintForm.endDate),
+        endDate: toNoonIsoOrNull(sprintForm.endDate),
         goal: sprintForm.goal.trim() || undefined,
         name: sprintForm.name.trim(),
-        startDate: toNoonIso(sprintForm.startDate),
+        startDate: toNoonIsoOrNull(sprintForm.startDate),
       });
       setSprint({ ...sprint, ...updated });
       setSheet(null);
@@ -345,6 +346,36 @@ export function SprintDetailScreen({ sprintId }: { sprintId: string }) {
     } finally {
       setSaving(false);
     }
+  }
+
+  function confirmDeleteSprint() {
+    if (!accessToken || !sprint) return;
+    if (!canDeleteSprint(sprint, tasks.length, retrospectives.length)) {
+      setError("Only planned sprints with no tasks, meetings, or retrospective notes can be deleted.");
+      return;
+    }
+
+    Alert.alert("Delete sprint?", `Delete "${sprint.name}"? This only works for planned sprints with no owned records.`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          void (async () => {
+            setSaving(true);
+            setError("");
+            try {
+              await deleteSprint(accessToken, sprint.id);
+              router.replace("/(workspace)/sprints");
+            } catch (caught) {
+              setError(caught instanceof Error ? caught.message : "Unable to delete sprint.");
+            } finally {
+              setSaving(false);
+            }
+          })();
+        },
+      },
+    ]);
   }
 
   function confirmRemoveTask(task: Task) {
@@ -474,6 +505,11 @@ export function SprintDetailScreen({ sprintId }: { sprintId: string }) {
               <Pressable accessibilityRole="button" onPress={openEditSprint} style={styles.darkIconBtn}>
                 <Edit3 color={colors.white} size={17} strokeWidth={2.7} />
               </Pressable>
+              {canDeleteSprint(sprint, tasks.length, retrospectives.length) ? (
+                <Pressable accessibilityRole="button" onPress={confirmDeleteSprint} style={styles.darkIconBtn}>
+                  <Trash2 color={colors.white} size={17} strokeWidth={2.7} />
+                </Pressable>
+              ) : null}
               {state === "planned" ? (
                 <Pressable
                   accessibilityRole="button"
@@ -1436,8 +1472,20 @@ function actionItemsToText(actionItems?: unknown[] | null) {
 
 function sprintState(sprint: Sprint | null): "active" | "completed" | "planned" {
   if (sprint?.completedAt) return "completed";
-  if (sprint?.startDate) return "active";
-  return "planned";
+  if (!sprint?.startDate) return "planned";
+  const start = new Date(String(sprint.startDate)).getTime();
+  if (Number.isFinite(start) && start > Date.now()) return "planned";
+  return "active";
+}
+
+function canDeleteSprint(sprint: Sprint, taskCount: number, retrospectiveCount: number) {
+  const counts = sprint._count as (Sprint["_count"] & { meetings?: number }) | undefined;
+  return (
+    sprintState(sprint) === "planned" &&
+    taskCount === 0 &&
+    retrospectiveCount === 0 &&
+    (counts?.meetings ?? 0) === 0
+  );
 }
 
 function isoDate(value?: string | null) {
@@ -1449,6 +1497,10 @@ function toNoonIso(value: string) {
   if (!trimmed) return undefined;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
   return `${trimmed}T12:00:00.000Z`;
+}
+
+function toNoonIsoOrNull(value: string) {
+  return toNoonIso(value) ?? null;
 }
 
 function parsePositiveFloat(value: string) {

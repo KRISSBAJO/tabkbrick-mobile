@@ -5,6 +5,7 @@ type AiAgentQuery = OpenApiQuery<"/api/v1/ai/agents", "get">;
 type AiConversationQuery = OpenApiQuery<"/api/v1/ai/conversations", "get">;
 type AiActionQuery = OpenApiQuery<"/api/v1/ai/actions", "get">;
 type AiUsageQuery = OpenApiQuery<"/api/v1/ai/usage", "get">;
+type BoardAiHistoryQuery = OpenApiQuery<"/api/v1/ai/board-history", "get">;
 
 export type AiAgent = components["schemas"]["AiAgent"];
 export type AiSettings = components["schemas"]["AiSettings"];
@@ -30,6 +31,8 @@ export type BoardAiRiskScanResponse = NonNullable<OpenApiResponse<"/api/v1/ai/bo
 export type BoardAiActionPlanResponse = NonNullable<OpenApiResponse<"/api/v1/ai/board-actions", "post">>;
 export type BoardAiApplyActionsPayload = OpenApiJsonBody<"/api/v1/ai/board-actions/apply", "post">;
 export type BoardAiApplyResponse = NonNullable<OpenApiResponse<"/api/v1/ai/board-actions/apply", "post">>;
+export type BoardAiHistoryResponse = NonNullable<OpenApiResponse<"/api/v1/ai/board-history", "get">>;
+export type BoardAiHistoryEntry = BoardAiHistoryResponse["data"][number];
 export type KnowledgeSearchPayload = OpenApiJsonBody<"/api/v1/ai/knowledge-search", "post">;
 export type UpdateAiSettingsPayload = OpenApiJsonBody<"/api/v1/ai/settings", "patch">;
 export type CreateAiConversationPayload = OpenApiJsonBody<"/api/v1/ai/conversations", "post">;
@@ -262,6 +265,19 @@ export function applyBoardActions(token: string, body: BoardAiApplyActionsPayloa
   return openApiRequest("/api/v1/ai/board-actions/apply", "post", {
     body,
     pathParams: {},
+    token,
+  });
+}
+
+export function listBoardAiHistory(token: string, query: BoardAiHistoryQuery = {}) {
+  return openApiRequest("/api/v1/ai/board-history", "get", {
+    cache: "no-store",
+    pathParams: {},
+    query: {
+      ...query,
+      limit: boundedLimit(query.limit, 20),
+      page: query.page ?? 1,
+    },
     token,
   });
 }

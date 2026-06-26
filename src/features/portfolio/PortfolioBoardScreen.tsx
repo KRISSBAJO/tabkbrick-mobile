@@ -73,6 +73,7 @@ import {
   generateBoardSummary,
   inviteTeamMember,
   inviteTenantUser,
+  listBoardAiHistory,
   listDocuments,
   listPermissions,
   listProjects,
@@ -90,6 +91,7 @@ import {
   updateTaskOrder,
   type BoardAiActionPlanResponse,
   type BoardAiApplyResponse,
+  type BoardAiHistoryEntry,
   type BoardAiRiskScanResponse,
   type BoardAiSummaryResponse,
   type TeamInviteResult,
@@ -220,11 +222,35 @@ export function PortfolioBoardScreen() {
   const [aiError, setAiError] = useState("");
   const [selectedAiActionIds, setSelectedAiActionIds] = useState<Set<string>>(() => new Set());
   const [aiApplyResult, setAiApplyResult] = useState<BoardAiApplyResponse | null>(null);
+  const [aiHistory, setAiHistory] = useState<BoardAiHistoryEntry[]>([]);
+  const [aiHistoryError, setAiHistoryError] = useState("");
+  const [aiHistoryLoading, setAiHistoryLoading] = useState(false);
 
   const selectedProject = useMemo(
     () => projects.find((p) => p.id === selectedProjectId) ?? projects[0] ?? null,
     [projects, selectedProjectId],
   );
+
+  const loadAiHistory = useCallback(async (projectId: string, boardId?: string | null) => {
+    if (!accessToken || !projectId) {
+      setAiHistory([]);
+      return;
+    }
+    setAiHistoryLoading(true);
+    setAiHistoryError("");
+    try {
+      const response = await listBoardAiHistory(accessToken, {
+        boardId: boardId ?? undefined,
+        limit: 8,
+        projectId,
+      });
+      setAiHistory(response.data);
+    } catch (caught) {
+      setAiHistoryError(caught instanceof Error ? caught.message : "Unable to load Board AI history.");
+    } finally {
+      setAiHistoryLoading(false);
+    }
+  }, [accessToken]);
 
   const load = useCallback(async (showRefreshing = false) => {
     if (!accessToken) return;
@@ -243,6 +269,7 @@ export function PortfolioBoardScreen() {
         setTeamMembers([]);
         setTeams([]);
         setTasks([]);
+        setAiHistory([]);
         return;
       }
       const [nextBoard, taskPage, teamPage, teamMemberList, documentPage] = await Promise.all([
@@ -257,10 +284,11 @@ export function PortfolioBoardScreen() {
       setTeamMembers(teamMemberList);
       setTeams(teamPage ? (Array.isArray(teamPage) ? teamPage : teamPage.data) : []);
       setTasks(Array.isArray(taskPage) ? taskPage : taskPage.data);
+      void loadAiHistory(nextSelected.id, nextBoard?.id);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to load portfolio board.");
     } finally { setLoading(false); setRefreshing(false); }
-  }, [accessToken, selectedProjectId]);
+  }, [accessToken, loadAiHistory, selectedProjectId]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -314,6 +342,7 @@ export function PortfolioBoardScreen() {
         setSelectedAiActionIds(new Set());
         setAiResult({ mode, result });
       }
+      void loadAiHistory(selectedProject.id, board?.id);
     } catch (caught) {
       setAiError(caught instanceof Error ? caught.message : "Unable to run board AI.");
     } finally {
@@ -346,6 +375,7 @@ export function PortfolioBoardScreen() {
         projectId: selectedProject.id,
       });
       setAiApplyResult(result);
+      setAiResult(null);
       setSelectedAiActionIds(new Set());
       await load(true);
     } catch (caught) {
@@ -698,9 +728,13 @@ export function PortfolioBoardScreen() {
       <BoardAiSheet
         applyResult={aiApplyResult}
         error={aiError}
+        history={aiHistory}
+        historyError={aiHistoryError}
+        historyLoading={aiHistoryLoading}
         loading={aiLoading}
         onApply={() => void applySelectedBoardAiActions()}
         onClose={() => setAiOpen(false)}
+        onRefreshHistory={() => void loadAiHistory(selectedProject.id, board?.id)}
         onRun={(mode) => void runBoardAi(mode)}
         onToggleAction={toggleAiAction}
         open={aiOpen}
@@ -723,9 +757,13 @@ async function safe<T>(promise: Promise<T>, fallback: T) {
 function BoardAiSheet({
   applyResult,
   error,
+  history,
+  historyError,
+  historyLoading,
   loading,
   onApply,
   onClose,
+  onRefreshHistory,
   onRun,
   onToggleAction,
   open,
@@ -735,9 +773,13 @@ function BoardAiSheet({
 }: {
   applyResult: BoardAiApplyResponse | null;
   error: string;
+  history: BoardAiHistoryEntry[];
+  historyError: string;
+  historyLoading: boolean;
   loading: BoardAiMode | null;
   onApply: () => void;
   onClose: () => void;
+  onRefreshHistory: () => void;
   onRun: (mode: BoardAiMode) => void;
   onToggleAction: (actionId: string) => void;
   open: boolean;
@@ -801,6 +843,8 @@ function BoardAiSheet({
                 <Text style={styles.aiEmptyText}>Results stay here as guidance. No task is moved, edited, or assigned automatically.</Text>
               </View>
             ) : null}
+
+            {applyResult && !result ? <BoardAiApplyResultBlock result={applyResult} /> : null}
 
             {summary ? (
               <View style={styles.aiResultStack}>
@@ -891,6 +935,13 @@ function BoardAiSheet({
                 </View>
               </View>
             ) : null}
+
+            <BoardAiHistoryBlock
+              entries={history}
+              error={historyError}
+              loading={historyLoading}
+              onRefresh={onRefreshHistory}
+            />
           </ScrollView>
         </View>
       </View>
@@ -903,6 +954,84 @@ function AiResultBlock({ body, title }: { body: string; title: string }) {
     <View style={styles.aiBlock}>
       <Text style={styles.aiBlockTitle}>{title}</Text>
       <Text style={styles.aiBlockBody}>{body}</Text>
+    </View>
+  );
+}
+
+function BoardAiApplyResultBlock({ result }: { result: BoardAiApplyResponse }) {
+  return (
+    <View style={styles.aiBlock}>
+      <Text style={styles.aiBlockTitle}>Apply attempt saved</Text>
+      <Text style={styles.aiBlockBody}>{result.applied} applied, {result.failed} failed. The old review queue was cleared so stale proposal IDs are not reused.</Text>
+      <View style={styles.aiApplyResult}>
+        {result.results.map((item) => (
+          <Text key={item.actionId} numberOfLines={2} style={[styles.aiApplyResultLine, item.status === "COMPLETED" ? styles.aiApplyOk : styles.aiApplyFail]}>
+            {item.status}: {item.message ?? item.error ?? item.title ?? item.type}
+          </Text>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function BoardAiHistoryBlock({
+  entries,
+  error,
+  loading,
+  onRefresh,
+}: {
+  entries: BoardAiHistoryEntry[];
+  error: string;
+  loading: boolean;
+  onRefresh: () => void;
+}) {
+  return (
+    <View style={styles.aiBlock}>
+      <View style={styles.aiHistoryHeader}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.aiBlockTitle}>Board AI history</Text>
+          <Text style={styles.aiHistoryMetaText}>Saved generations and apply attempts</Text>
+        </View>
+        <Pressable accessibilityRole="button" disabled={loading} onPress={onRefresh} style={styles.aiHistoryRefresh}>
+          {loading ? <ActivityIndicator color={colors.foreground} size="small" /> : <RefreshCw color={colors.foreground} size={15} strokeWidth={2.6} />}
+        </Pressable>
+      </View>
+
+      {error ? (
+        <View style={styles.aiHistoryError}>
+          <Text style={styles.aiErrorText}>{error}</Text>
+        </View>
+      ) : null}
+
+      {!loading && !entries.length && !error ? (
+        <Text style={styles.aiEmptyText}>No Board AI records yet.</Text>
+      ) : null}
+
+      <View style={styles.aiHistoryList}>
+        {entries.map((entry) => (
+          <View key={entry.id} style={styles.aiHistoryCard}>
+            <View style={styles.aiHistoryTop}>
+              <View style={styles.aiHistoryKind}>
+                {entry.kind === "apply" ? <CheckSquare2 color={colors.accent} size={14} strokeWidth={2.8} /> : historyIcon(entry.type)}
+                <Text style={styles.aiHistoryKindText}>{historyTypeLabel(entry.type)}</Text>
+              </View>
+              <Text style={[
+                styles.aiHistoryStatus,
+                entry.status === "COMPLETED" ? styles.aiHistoryStatusOk : null,
+                entry.status === "FAILED" ? styles.aiHistoryStatusFail : null,
+              ]}>
+                {entry.status}
+              </Text>
+            </View>
+            <Text numberOfLines={3} style={styles.aiHistoryPreview}>{historyPreview(entry)}</Text>
+            <View style={styles.aiHistoryFooter}>
+              <Text style={styles.aiHistoryMetaText}>{formatHistoryDate(entry.createdAt)}</Text>
+              {entry.totalTokens ? <Text style={styles.aiHistoryMetaText}>{entry.totalTokens} tokens</Text> : null}
+              {entry.provider ? <Text style={styles.aiHistoryMetaText}>{entry.provider}</Text> : null}
+            </View>
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
@@ -921,6 +1050,68 @@ function AiListBlock({ items, title, tone }: { items: string[]; title: string; t
       )}
     </View>
   );
+}
+
+function historyIcon(type: string) {
+  const normalized = type.toLowerCase();
+  if (normalized.includes("risk")) return <ShieldAlert color={colors.danger} size={14} strokeWidth={2.8} />;
+  if (normalized.includes("action")) return <Zap color={colors.accent} size={14} strokeWidth={2.8} />;
+  return <Bot color={colors.accent} size={14} strokeWidth={2.8} />;
+}
+
+function historyTypeLabel(type: string) {
+  const normalized = type.toLowerCase();
+  if (normalized.includes("summary")) return "Summary";
+  if (normalized.includes("risk")) return "Risk scan";
+  if (normalized.includes("apply")) return "Apply";
+  if (normalized.includes("action")) return "Action plan";
+  return type.replace(/_/g, " ");
+}
+
+function historyPreview(entry: BoardAiHistoryEntry) {
+  if (entry.error) return entry.error;
+  if (entry.kind === "apply") {
+    const completed = entry.results?.filter((result) => result.status === "COMPLETED").length ?? 0;
+    const failed = entry.results?.filter((result) => result.status !== "COMPLETED").length ?? 0;
+    return `${completed} completed, ${failed} failed. Apply audit saved for review.`;
+  }
+  const artifact = toLooseRecord(entry.artifact);
+  const directText = firstString(artifact, ["content", "summary", "narrative"]);
+  if (directText) return directText;
+  const highlights = toTextArray(artifact.highlights);
+  if (highlights.length) return highlights.slice(0, 2).join(" ");
+  const proposals = Array.isArray(artifact.proposals) ? artifact.proposals : [];
+  if (proposals.length) return `${proposals.length} reviewable proposals generated.`;
+  const findings = Array.isArray(artifact.findings) ? artifact.findings : [];
+  if (findings.length) return `${findings.length} risk findings captured.`;
+  return "Saved Board AI artifact.";
+}
+
+function formatHistoryDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Saved";
+  return date.toLocaleString(undefined, {
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    month: "short",
+  });
+}
+
+function toLooseRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function firstString(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function toTextArray(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
 }
 
 function BoardTabs({ activeView, onChange }: { activeView: PortfolioView; onChange: (view: PortfolioView) => void }) {
@@ -3627,6 +3818,20 @@ const styles = StyleSheet.create({
   aiProposalImpact: { color: colors.slate, fontSize: 12, fontWeight: "900", lineHeight: 17, marginTop: 4 },
   aiProposalMetaRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },
   aiProposalMeta: { backgroundColor: colors.panel, borderColor: colors.line, borderRadius: 999, borderWidth: 1, color: colors.inkSoft, fontSize: 9, fontWeight: "900", letterSpacing: 0.4, paddingHorizontal: 8, paddingVertical: 4, textTransform: "uppercase" },
+  aiHistoryHeader: { alignItems: "center", flexDirection: "row", gap: 12, justifyContent: "space-between" },
+  aiHistoryRefresh: { alignItems: "center", backgroundColor: colors.panelMuted, borderColor: colors.line, borderRadius: 999, borderWidth: 1, height: 34, justifyContent: "center", width: 34 },
+  aiHistoryError: { backgroundColor: colors.redSoft, borderColor: "#fecaca", borderRadius: radii.lg, borderWidth: 1, padding: 10 },
+  aiHistoryList: { gap: 9 },
+  aiHistoryCard: { backgroundColor: colors.panelMuted, borderColor: colors.line, borderRadius: radii.lg, borderWidth: 1, gap: 8, padding: 12 },
+  aiHistoryTop: { alignItems: "center", flexDirection: "row", gap: 10, justifyContent: "space-between" },
+  aiHistoryKind: { alignItems: "center", flexDirection: "row", gap: 6 },
+  aiHistoryKindText: { color: colors.foreground, fontSize: 12, fontWeight: "900" },
+  aiHistoryStatus: { backgroundColor: colors.panel, borderColor: colors.line, borderRadius: 999, borderWidth: 1, color: colors.inkSoft, fontSize: 9, fontWeight: "900", letterSpacing: 0.4, paddingHorizontal: 8, paddingVertical: 4, textTransform: "uppercase" },
+  aiHistoryStatusOk: { backgroundColor: colors.greenSoft, borderColor: "#bbf7d0", color: colors.success },
+  aiHistoryStatusFail: { backgroundColor: colors.redSoft, borderColor: "#fecaca", color: colors.danger },
+  aiHistoryPreview: { color: colors.slate, fontSize: 12, fontWeight: "800", lineHeight: 17 },
+  aiHistoryFooter: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  aiHistoryMetaText: { color: colors.inkSoft, fontSize: 10, fontWeight: "900", letterSpacing: 0.3, textTransform: "uppercase" },
   sheetActions: { alignItems: "center", borderTopColor: colors.line, borderTopWidth: 1, flexDirection: "row", gap: 10, justifyContent: "flex-end", padding: 16 },
   deleteBtn: { alignItems: "center", backgroundColor: colors.redSoft, borderRadius: radii.lg, height: 50, justifyContent: "center", width: 50 },
   cancelBtn: { alignItems: "center", backgroundColor: colors.panel, borderColor: colors.line, borderRadius: radii.lg, borderWidth: 1, height: 50, justifyContent: "center", paddingHorizontal: 18 },

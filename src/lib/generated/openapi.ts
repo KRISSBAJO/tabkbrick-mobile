@@ -8852,6 +8852,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ai/board-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List saved Board AI generations and apply attempts */
+        get: operations["Ai_listBoardHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ai/board-risk-scan": {
         parameters: {
             query?: never;
@@ -15018,9 +15035,9 @@ export interface components {
         UpdateSprintDto: {
             name?: string;
             goal?: string;
-            startDate?: string;
-            endDate?: string;
-            completedAt?: string;
+            startDate?: string | null;
+            endDate?: string | null;
+            completedAt?: string | null;
         };
         CompleteSprintDto: {
             moveIncompleteToSprintId?: string;
@@ -16316,6 +16333,42 @@ export interface components {
             recommendedActions: string[];
             usage: components["schemas"]["BoardAiUsageDto"];
         };
+        BoardAiApplyResultDto: {
+            actionId: string;
+            type: string;
+            status: string;
+            title?: string;
+            entityType?: string;
+            entityId?: string;
+            message?: string;
+            error?: string;
+        };
+        BoardAiHistoryEntryDto: {
+            id: string;
+            /** @enum {string} */
+            kind: "generation" | "apply";
+            type: string;
+            projectId: string;
+            boardId?: string | null;
+            /** @enum {string} */
+            status: "PENDING" | "COMPLETED" | "FAILED" | "CANCELLED";
+            provider?: string;
+            model?: string;
+            totalTokens?: number;
+            estimatedCost?: number;
+            error?: string;
+            artifact?: Record<string, never>;
+            results?: components["schemas"]["BoardAiApplyResultDto"][];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        BoardAiHistoryResponseDto: {
+            data: components["schemas"]["BoardAiHistoryEntryDto"][];
+            page: number;
+            limit: number;
+            total: number;
+            totalPages: number;
+        };
         BoardAiRiskFindingDto: {
             type: string;
             severity: string;
@@ -16380,16 +16433,6 @@ export interface components {
             /** @description Board scope used when the action plan was generated. */
             boardId?: string;
             actionIds: string[];
-        };
-        BoardAiApplyResultDto: {
-            actionId: string;
-            type: string;
-            status: string;
-            title?: string;
-            entityType?: string;
-            entityId?: string;
-            message?: string;
-            error?: string;
         };
         BoardAiApplyResponseDto: {
             projectId: string;
@@ -32996,6 +33039,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BoardAiSummaryResponseDto"];
+                };
+            };
+        };
+    };
+    Ai_listBoardHistory: {
+        parameters: {
+            query?: {
+                page?: number;
+                limit?: number;
+                search?: string;
+                projectId?: string;
+                boardId?: string;
+                type?: "board_summary" | "board_risk_scan" | "board_action_plan" | "board_actions_apply";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BoardAiHistoryResponseDto"];
                 };
             };
         };

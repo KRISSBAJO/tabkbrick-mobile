@@ -110,8 +110,9 @@ export function SprintListScreen() {
     const active: Sprint[] = [];
     const completed: Sprint[] = [];
     for (const s of visibleSprints) {
-      if (s.completedAt) completed.push(s);
-      else if (s.startDate) active.push(s);
+      const lane = sprintLane(s);
+      if (lane === "completed") completed.push(s);
+      else if (lane === "active") active.push(s);
       else planned.push(s);
     }
     return { active, completed, planned };
@@ -179,21 +180,33 @@ export function SprintListScreen() {
 
   async function saveSprint() {
     if (!accessToken || !selectedProject || !form.name.trim() || !sheet) return;
+    const dateError = validateSprintDates(form);
+    if (dateError) {
+      setError(dateError);
+      return;
+    }
     setSaving(true);
     setError("");
 
     try {
-      const body = {
-        endDate: toNoonIso(form.endDate),
+      const baseBody = {
         goal: form.goal.trim() || undefined,
         name: form.name.trim(),
-        startDate: toNoonIso(form.startDate),
       };
 
       if (sheet.mode === "create") {
-        await createSprint(accessToken, { ...body, projectId: selectedProject.id });
+        await createSprint(accessToken, {
+          ...baseBody,
+          endDate: toNoonIso(form.endDate),
+          projectId: selectedProject.id,
+          startDate: toNoonIso(form.startDate),
+        });
       } else {
-        await updateSprint(accessToken, sheet.sprint.id, body);
+        await updateSprint(accessToken, sheet.sprint.id, {
+          ...baseBody,
+          endDate: toNoonIsoOrNull(form.endDate),
+          startDate: toNoonIsoOrNull(form.startDate),
+        });
       }
 
       setSheet(null);
@@ -235,9 +248,14 @@ export function SprintListScreen() {
 
   function confirmDeleteSprint(sprint: Sprint) {
     if (!accessToken) return;
+    if (!canDeleteSprint(sprint)) {
+      setError("Only planned sprints with no tasks, meetings, or retrospective notes can be deleted.");
+      return;
+    }
+
     Alert.alert(
       "Delete sprint?",
-      `Delete "${sprint.name}"? The backend only allows empty sprints to be deleted.`,
+      `Delete "${sprint.name}"? This only works for planned sprints with no owned records.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -590,6 +608,7 @@ function SprintCard({
   const taskCount = sprint._count?.tasks ?? 0;
   const progress = timeProgress(sprint.startDate, sprint.endDate);
   const daysLeft = daysRemaining(sprint.endDate);
+  const scheduleText = sprintScheduleText(sprint, lane);
 
   return (
     <Pressable
@@ -617,9 +636,7 @@ function SprintCard({
       {/* Date + days left */}
       <View style={styles.sprintDateRow}>
         <CalendarDays color={colors.inkSoft} size={13} strokeWidth={2.5} />
-        <Text style={styles.sprintDateText}>
-          {formatShortDate(sprint.startDate)} – {formatShortDate(sprint.endDate)}
-        </Text>
+        <Text style={styles.sprintDateText}>{scheduleText}</Text>
         {daysLeft !== null && !sprint.completedAt ? (
           <View style={[styles.daysLeftBadge, daysLeft < 0 && styles.daysLeftOverdue]}>
             <Text style={[styles.daysLeftText, daysLeft < 0 && styles.daysLeftTextOverdue]}>
@@ -677,7 +694,7 @@ function SprintCard({
               <Edit3 color={colors.foreground} size={15} strokeWidth={2.7} />
             </Pressable>
           ) : null}
-          {taskCount === 0 ? (
+          {canDeleteSprint(sprint) ? (
             <Pressable
               accessibilityRole="button"
               onPress={onDelete}
@@ -766,6 +783,16 @@ function SprintEditorSheet({
           </View>
 
           <ScrollView contentContainerStyle={styles.sheetContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.plannedNote}>
+              <View style={styles.plannedNoteIcon}>
+                <CalendarDays color={colors.accent} size={18} strokeWidth={2.7} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.plannedNoteTitle}>Plan first, start later</Text>
+                <Text style={styles.plannedNoteText}>Leave dates blank to keep this as a planned sprint. Add dates when the team commits, then start it from the sprint list.</Text>
+              </View>
+            </View>
+
             <Field label="Sprint name">
               <TextInput
                 autoFocus
@@ -813,6 +840,7 @@ function SprintEditorSheet({
               horizontal
               showsHorizontalScrollIndicator={false}
             >
+              <DateChip label="Keep planned" onPress={() => onChange({ ...form, endDate: "", startDate: "" })} />
               <DateChip label="This week" onPress={() => onChange({ ...form, ...dateRange(0, 6) })} />
               <DateChip label="Next week" onPress={() => onChange({ ...form, ...dateRange(7, 13) })} />
               <DateChip label="2 weeks" onPress={() => onChange({ ...form, ...dateRange(0, 13) })} />
@@ -889,6 +917,49 @@ function toNoonIso(value: string) {
   if (!trimmed) return undefined;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
   return `${trimmed}T12:00:00.000Z`;
+}
+
+function toNoonIsoOrNull(value: string) {
+  return toNoonIso(value) ?? null;
+}
+
+function validateSprintDates(form: SprintFormState) {
+  if (!form.startDate && form.endDate) return "Choose a start date or clear the end date to keep this sprint planned.";
+  if (form.startDate && form.endDate) {
+    const start = new Date(form.startDate).getTime();
+    const end = new Date(form.endDate).getTime();
+    if (Number.isFinite(start) && Number.isFinite(end) && end < start) {
+      return "Sprint end date must be after the start date.";
+    }
+  }
+  return "";
+}
+
+function sprintLane(sprint: Sprint): SprintLane {
+  if (sprint.completedAt) return "completed";
+  if (!sprint.startDate) return "planned";
+  const start = new Date(String(sprint.startDate)).getTime();
+  if (Number.isFinite(start) && start > Date.now()) return "planned";
+  return "active";
+}
+
+function canDeleteSprint(sprint: Sprint) {
+  const counts = sprint._count as (Sprint["_count"] & { meetings?: number }) | undefined;
+  return (
+    sprintLane(sprint) === "planned" &&
+    (counts?.tasks ?? 0) === 0 &&
+    (counts?.meetings ?? 0) === 0 &&
+    (counts?.retrospectives ?? 0) === 0
+  );
+}
+
+function sprintScheduleText(sprint: Sprint, lane: SprintLane) {
+  if (!sprint.startDate && !sprint.endDate) {
+    return lane === "planned" ? "Unscheduled planned sprint" : "No schedule";
+  }
+  if (sprint.startDate && !sprint.endDate) return `Starts ${formatShortDate(sprint.startDate)}`;
+  if (!sprint.startDate && sprint.endDate) return `Target ${formatShortDate(sprint.endDate)}`;
+  return `${formatShortDate(sprint.startDate)} - ${formatShortDate(sprint.endDate)}`;
 }
 
 function dateRange(startOffset: number, endOffset: number) {
@@ -1248,6 +1319,26 @@ const styles = StyleSheet.create({
     width: 36,
   },
   sheetContent: { gap: 16, padding: 18 },
+  plannedNote: {
+    alignItems: "flex-start",
+    backgroundColor: colors.blueSoft,
+    borderColor: "#bfdbfe",
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    padding: 14,
+  },
+  plannedNoteIcon: {
+    alignItems: "center",
+    backgroundColor: colors.panel,
+    borderRadius: 16,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  plannedNoteTitle: { color: colors.foreground, fontSize: 14, fontWeight: "900" },
+  plannedNoteText: { color: colors.inkSoft, fontSize: 12, fontWeight: "800", lineHeight: 17, marginTop: 3 },
   sheetActions: {
     alignItems: "center",
     borderTopColor: colors.line,
