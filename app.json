@@ -5,6 +5,7 @@
     "scheme": "taskbricks",
     "version": "0.1.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "assetBundlePatterns": ["**/*"],
@@ -15,6 +16,7 @@
     "android": {
       "package": "com.taskbricks.mobile",
       "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#111111"
       }
     },
@@ -23,7 +25,7 @@
       "typedRoutes": true
     },
     "extra": {
-      "apiUrl": "http://localhost:4070/api/v1"
+      "apiUrl": "https://taskbrick-be.onrender.com/api/v1"
     }
   }
 }

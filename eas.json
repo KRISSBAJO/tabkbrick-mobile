@@ -1,0 +1,46 @@
+{
+  "cli": {
+    "version": ">= 14.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://taskbrick-be.onrender.com/api/v1"
+      }
+    },
+    "testflight": {
+      "distribution": "store",
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://taskbrick-be.onrender.com/api/v1"
+      }
+    },
+    "apk": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://taskbrick-be.onrender.com/api/v1"
+      }
+    },
+    "production": {
+      "distribution": "store",
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://taskbrick-be.onrender.com/api/v1"
+      }
+    }
+  },
+  "submit": {
+    "testflight": {
+      "ios": {}
+    },
+    "production": {
+      "ios": {},
+      "android": {}
+    }
+  }
+}
