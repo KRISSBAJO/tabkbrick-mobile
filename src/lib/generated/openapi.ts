@@ -3009,7 +3009,7 @@ export interface paths {
         get: operations["Teams_get"];
         put?: never;
         post?: never;
-        /** Delete an empty team in the current tenant */
+        /** Delete or soft-delete a team in the current tenant */
         delete: operations["Teams_delete"];
         options?: never;
         head?: never;
@@ -13810,6 +13810,12 @@ export interface components {
                 projects?: number;
             };
             description?: string | null;
+            avatarUrl?: string | null;
+            avatarPublicId?: string | null;
+            createdById?: string | null;
+            updatedById?: string | null;
+            deletedAt?: string | null;
+            deletedById?: string | null;
             id: string;
             name: string;
             tenantId: string;
@@ -14560,6 +14566,10 @@ export interface components {
             /** @example Owns backend platform services */
             description?: string;
             workspaceId?: string;
+            /** @example https://res.cloudinary.com/taskbricks/image/upload/v1/team-avatar.png */
+            avatarUrl?: string | null;
+            /** @example taskbricks/teams/platform-avatar */
+            avatarPublicId?: string | null;
         };
         UpdateTeamDto: {
             /** @example Platform Team */
@@ -14567,6 +14577,10 @@ export interface components {
             /** @example Owns backend platform services */
             description?: string;
             workspaceId?: string;
+            /** @example https://res.cloudinary.com/taskbricks/image/upload/v1/team-avatar.png */
+            avatarUrl?: string | null;
+            /** @example taskbricks/teams/platform-avatar */
+            avatarPublicId?: string | null;
         };
         AddTeamMemberDto: {
             userId: string;
@@ -21975,7 +21989,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Team"];
+                };
             };
         };
     };
@@ -21995,7 +22011,11 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        /** @enum {string} */
+                        mode: "deleted" | "soft_deleted";
+                        success: boolean;
+                    };
                 };
             };
         };
@@ -22020,7 +22040,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Team"];
+                };
             };
         };
     };

@@ -3,6 +3,7 @@ import { apiRequest, boundedLimit, openApiRequest, type OpenApiJsonBody, type Op
 type ListWorkspacesQuery = OpenApiQuery<"/api/v1/workspaces", "get">;
 type ListTeamsQuery = OpenApiQuery<"/api/v1/teams", "get">;
 export type CreateTeamPayload = OpenApiJsonBody<"/api/v1/teams", "post">;
+export type UpdateTeamPayload = OpenApiJsonBody<"/api/v1/teams/{teamId}", "patch">;
 export type AddTeamMemberPayload = OpenApiJsonBody<"/api/v1/teams/{teamId}/members", "post">;
 export type InviteTeamMemberPayload = OpenApiJsonBody<"/api/v1/teams/{teamId}/invite", "post">;
 export type TeamInviteDeliveryStatus = {
@@ -59,6 +60,21 @@ export function createTeam(token: string, body: CreateTeamPayload) {
     token,
     body,
     pathParams: {},
+  });
+}
+
+export function updateTeam(token: string, teamId: string, body: UpdateTeamPayload) {
+  return openApiRequest("/api/v1/teams/{teamId}", "patch", {
+    token,
+    body,
+    pathParams: { teamId },
+  });
+}
+
+export function deleteTeam(token: string, teamId: string) {
+  return openApiRequest("/api/v1/teams/{teamId}", "delete", {
+    token,
+    pathParams: { teamId },
   });
 }
 

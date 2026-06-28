@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import * as DocumentPicker from "expo-document-picker";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -19,7 +21,9 @@ import {
   ArrowLeft,
   BookOpen,
   Building2,
+  ImagePlus,
   Mail,
+  Pencil,
   Plus,
   RefreshCw,
   Search,
@@ -32,7 +36,10 @@ import {
   addTeamMember,
   bulkInviteTenantUsers,
   cancelTeamMemberInvite,
+  createFileAsset,
   createTeam,
+  createUploadIntent,
+  deleteTeam,
   inviteTeamMember,
   inviteTenantUser,
   listPermissions,
@@ -43,14 +50,28 @@ import {
   listWorkspaces,
   removeTeamMember,
   resendTeamMemberInvite,
+  updateTeam,
   type TeamInviteResult,
 } from "@/lib/api";
 import { useAuthSession } from "@/lib/auth/AuthSessionProvider";
 import { withFontStyles } from "@/lib/theme/fontDefaults";
 import { colors, radii, shadow } from "@/lib/theme/tokens";
-import type { BulkInviteUsersResponse, Permission, Role, Team, TeamMember, TenantUser, Workspace } from "@/lib/types";
+import type { BulkInviteUsersResponse, Permission, Role, Team, TeamMember, TenantUser, UploadIntent, Workspace } from "@/lib/types";
 
 type TeamTab = "members" | "invite" | "add" | "directory" | "bulk" | "roles";
+type TeamFormState = {
+  avatarPublicId: string;
+  avatarUrl: string;
+  description: string;
+  name: string;
+  workspaceId: string;
+};
+type PickedTeamAsset = {
+  mimeType?: string | null;
+  name: string;
+  size?: number | null;
+  uri: string;
+};
 
 const teamRoleOptions = ["Owner", "Lead", "Manager", "Member", "Viewer"];
 const teamAccents = ["#2563eb", "#0f9f6e", "#8b5cf6", "#dc2626", "#0ea5e9", "#b45309", "#db2777"];
@@ -62,7 +83,9 @@ export function TeamManagementScreen() {
   const [bulkResult, setBulkResult] = useState<BulkInviteUsersResponse | null>(null);
   const [bulkRoleIds, setBulkRoleIds] = useState<string[]>([]);
   const [bulkText, setBulkText] = useState("");
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [error, setError] = useState("");
   const [inviteForm, setInviteForm] = useState({ email: "", firstName: "", lastName: "", roleIds: [] as string[], teamRole: "Member" });
   const [loading, setLoading] = useState(true);
@@ -75,7 +98,7 @@ export function TeamManagementScreen() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [saving, setSaving] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState("");
-  const [teamForm, setTeamForm] = useState({ description: "", name: "", workspaceId: "" });
+  const [teamForm, setTeamForm] = useState<TeamFormState>({ avatarPublicId: "", avatarUrl: "", description: "", name: "", workspaceId: "" });
   const [teams, setTeams] = useState<Team[]>([]);
   const [tenantInviteForm, setTenantInviteForm] = useState({ email: "", firstName: "", lastName: "", roleIds: [] as string[] });
   const [users, setUsers] = useState<TenantUser[]>([]);
@@ -146,28 +169,129 @@ export function TeamManagementScreen() {
   useEffect(() => { void loadDirectory(); }, [loadDirectory]);
   useEffect(() => { void loadMembers(selectedTeamId); }, [loadMembers, selectedTeamId]);
 
-  async function handleCreateTeam() {
+  function openCreateTeam() {
+    setEditingTeam(null);
+    setTeamForm((current) => ({ avatarPublicId: "", avatarUrl: "", description: "", name: "", workspaceId: current.workspaceId }));
+    setCreateOpen(true);
+  }
+
+  function openEditTeam(team: Team) {
+    setEditingTeam(team);
+    setTeamForm({
+      avatarPublicId: team.avatarPublicId ?? "",
+      avatarUrl: team.avatarUrl ?? "",
+      description: team.description ?? "",
+      name: team.name,
+      workspaceId: team.workspaceId ?? "",
+    });
+    setCreateOpen(true);
+  }
+
+  async function handleSaveTeam() {
     if (!accessToken || !teamForm.name.trim()) return;
     setSaving(true);
     setMessage(null);
     try {
-      const created = await createTeam(accessToken, {
+      const payload = {
+        avatarPublicId: teamForm.avatarPublicId || null,
+        avatarUrl: teamForm.avatarUrl || null,
         description: teamForm.description.trim() || undefined,
         name: teamForm.name.trim(),
         workspaceId: teamForm.workspaceId || undefined,
-      });
-      setTeams((current) => [created, ...current.filter((team) => team.id !== created.id)]);
-      setSelectedTeamId(created.id);
+      };
+      const saved = editingTeam
+        ? await updateTeam(accessToken, editingTeam.id, payload)
+        : await createTeam(accessToken, payload);
+      setTeams((current) => [saved, ...current.filter((team) => team.id !== saved.id)]);
+      setSelectedTeamId(saved.id);
       setActiveTab("members");
       setCreateOpen(false);
-      setTeamForm((current) => ({ description: "", name: "", workspaceId: current.workspaceId }));
-      setMessage({ ok: true, text: "Team created." });
+      setEditingTeam(null);
+      setTeamForm((current) => ({ avatarPublicId: "", avatarUrl: "", description: "", name: "", workspaceId: current.workspaceId }));
+      setMessage({ ok: true, text: editingTeam ? "Team updated." : "Team created." });
       await loadDirectory(true);
     } catch (caught) {
-      setMessage({ ok: false, text: caught instanceof Error ? caught.message : "Unable to create team." });
+      setMessage({ ok: false, text: caught instanceof Error ? caught.message : editingTeam ? "Unable to update team." : "Unable to create team." });
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handlePickTeamAvatar() {
+    if (!accessToken) return;
+    setAvatarUploading(true);
+    setMessage(null);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false, type: "image/*" });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      const picked: PickedTeamAsset = {
+        mimeType: asset.mimeType ?? "image/jpeg",
+        name: asset.name ?? "team-avatar.jpg",
+        size: asset.size ?? undefined,
+        uri: asset.uri,
+      };
+      const intent = await createUploadIntent(accessToken, {
+        entityId: editingTeam?.id,
+        entityType: "TEAM",
+        fileName: picked.name,
+        mimeType: picked.mimeType ?? undefined,
+        scope: "TEAM",
+        sizeBytes: picked.size ?? undefined,
+        visibility: "TEAM",
+      });
+      const uploadedUrl = await uploadPickedTeamAsset(intent, picked);
+      const fileUrl = uploadedUrl || intent.fileUrl;
+      if (!fileUrl) throw new Error("Upload provider did not return a file URL.");
+      if (editingTeam?.id && /^https?:\/\//i.test(fileUrl)) {
+        void createFileAsset(accessToken, {
+          entityId: editingTeam.id,
+          entityType: "TEAM",
+          fileName: picked.name,
+          fileUrl,
+          mimeType: picked.mimeType ?? undefined,
+          provider: intent.provider,
+          scope: "TEAM",
+          sizeBytes: picked.size ?? undefined,
+          storageKey: intent.storageKey,
+          visibility: intent.visibility,
+        }).catch(() => undefined);
+      }
+      setTeamForm((current) => ({ ...current, avatarPublicId: intent.storageKey, avatarUrl: fileUrl }));
+      setMessage({ ok: true, text: "Avatar uploaded. Save the team to keep it." });
+    } catch (caught) {
+      setMessage({ ok: false, text: caught instanceof Error ? caught.message : "Unable to upload team avatar." });
+    } finally {
+      setAvatarUploading(false);
+    }
+  }
+
+  function confirmDeleteTeam(team: Team) {
+    if (!accessToken) return;
+    Alert.alert("Delete team?", `Delete ${team.name}? Teams with data are archived instead of hard-deleted.`, [
+      { style: "cancel", text: "Cancel" },
+      {
+        onPress: () => {
+          void (async () => {
+            setSaving(true);
+            setMessage(null);
+            try {
+              await deleteTeam(accessToken, team.id);
+              setTeams((current) => current.filter((item) => item.id !== team.id));
+              setSelectedTeamId((current) => (current === team.id ? "" : current));
+              setMessage({ ok: true, text: "Team removed from active management." });
+              await loadDirectory(true);
+            } catch (caught) {
+              setMessage({ ok: false, text: caught instanceof Error ? caught.message : "Unable to delete team." });
+            } finally {
+              setSaving(false);
+            }
+          })();
+        },
+        style: "destructive",
+        text: "Delete",
+      },
+    ]);
   }
 
   async function handleInviteTeamMember() {
@@ -370,7 +494,7 @@ export function TeamManagementScreen() {
         </View>
 
         <View style={styles.actionRow}>
-          <Pressable accessibilityRole="button" onPress={() => setCreateOpen(true)} style={styles.primaryAction}>
+          <Pressable accessibilityRole="button" onPress={openCreateTeam} style={styles.primaryAction}>
             <Plus color={colors.black} size={17} strokeWidth={3} />
             <Text style={styles.primaryActionText}>New team</Text>
           </Pressable>
@@ -417,8 +541,8 @@ export function TeamManagementScreen() {
                     }}
                     style={[styles.teamCard, active && styles.teamCardActive]}
                   >
-                    <View style={[styles.teamAvatar, { backgroundColor: teamAccent(team.name) }]}>
-                      <Text style={styles.teamAvatarText}>{teamInitials(team.name)}</Text>
+                    <View style={[styles.teamAvatar, !team.avatarUrl && { backgroundColor: teamAccent(team.name) }]}>
+                      {team.avatarUrl ? <Image source={{ uri: team.avatarUrl }} style={styles.avatarImage} /> : <Text style={styles.teamAvatarText}>{teamInitials(team.name)}</Text>}
                     </View>
                     <View style={styles.flex}>
                       <Text numberOfLines={1} style={styles.teamName}>{team.name}</Text>
@@ -438,13 +562,21 @@ export function TeamManagementScreen() {
             {selectedTeam ? (
               <View style={styles.panel}>
                 <View style={styles.panelHeader}>
-                  <View style={[styles.panelAvatar, { backgroundColor: teamAccent(selectedTeam.name) }]}>
-                    <Text style={styles.teamAvatarText}>{teamInitials(selectedTeam.name)}</Text>
+                  <View style={[styles.panelAvatar, !selectedTeam.avatarUrl && { backgroundColor: teamAccent(selectedTeam.name) }]}>
+                    {selectedTeam.avatarUrl ? <Image source={{ uri: selectedTeam.avatarUrl }} style={styles.avatarImage} /> : <Text style={styles.teamAvatarText}>{teamInitials(selectedTeam.name)}</Text>}
                   </View>
                   <View style={styles.flex}>
                     <Text numberOfLines={1} style={styles.panelTitle}>{selectedTeam.name}</Text>
                     <Text numberOfLines={2} style={styles.panelSub}>{selectedTeam.description || "No description added."}</Text>
                     <Text style={styles.panelWorkspace}>{selectedTeam.workspace?.name ?? "Tenant-wide"}</Text>
+                  </View>
+                  <View style={styles.panelActions}>
+                    <Pressable accessibilityRole="button" disabled={saving} onPress={() => openEditTeam(selectedTeam)} style={styles.panelIconButton}>
+                      <Pencil color={colors.foreground} size={16} strokeWidth={2.7} />
+                    </Pressable>
+                    <Pressable accessibilityRole="button" disabled={saving} onPress={() => confirmDeleteTeam(selectedTeam)} style={[styles.panelIconButton, styles.panelDangerButton]}>
+                      <Trash2 color={colors.danger} size={16} strokeWidth={2.7} />
+                    </Pressable>
                   </View>
                 </View>
 
@@ -580,10 +712,17 @@ export function TeamManagementScreen() {
         )}
 
         <TeamCreateSheet
+          avatarUploading={avatarUploading}
+          editing={Boolean(editingTeam)}
           form={teamForm}
           onChange={setTeamForm}
-          onClose={() => setCreateOpen(false)}
-          onSave={() => void handleCreateTeam()}
+          onClearAvatar={() => setTeamForm((current) => ({ ...current, avatarPublicId: "", avatarUrl: "" }))}
+          onClose={() => {
+            setCreateOpen(false);
+            setEditingTeam(null);
+          }}
+          onPickAvatar={() => void handlePickTeamAvatar()}
+          onSave={() => void handleSaveTeam()}
           open={createOpen}
           saving={saving}
           workspaces={workspaces}
@@ -740,17 +879,25 @@ function RolesTab({ roles }: { roles: Role[] }) {
 }
 
 function TeamCreateSheet({
+  avatarUploading,
+  editing,
   form,
   onChange,
+  onClearAvatar,
   onClose,
+  onPickAvatar,
   onSave,
   open,
   saving,
   workspaces,
 }: {
-  form: { description: string; name: string; workspaceId: string };
-  onChange: (form: { description: string; name: string; workspaceId: string }) => void;
+  avatarUploading: boolean;
+  editing: boolean;
+  form: TeamFormState;
+  onChange: (form: TeamFormState) => void;
+  onClearAvatar: () => void;
   onClose: () => void;
+  onPickAvatar: () => void;
   onSave: () => void;
   open: boolean;
   saving: boolean;
@@ -765,8 +912,8 @@ function TeamCreateSheet({
             <View style={styles.sheetHandle} />
             <View style={styles.sheetTitleRow}>
               <View style={styles.flex}>
-                <Text style={styles.sheetEyebrow}>New team</Text>
-                <Text style={styles.sheetTitle}>Create team</Text>
+                <Text style={styles.sheetEyebrow}>{editing ? "Team update" : "New team"}</Text>
+                <Text style={styles.sheetTitle}>{editing ? "Edit team" : "Create team"}</Text>
               </View>
               <Pressable accessibilityRole="button" onPress={onClose} style={styles.closeBtn}>
                 <X color={colors.foreground} size={20} strokeWidth={2.8} />
@@ -774,6 +921,24 @@ function TeamCreateSheet({
             </View>
           </View>
           <ScrollView contentContainerStyle={styles.sheetContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.avatarPickerCard}>
+              <View style={[styles.avatarPickerPreview, !form.avatarUrl && { backgroundColor: teamAccent(form.name || "Team") }]}>
+                {form.avatarUrl ? <Image source={{ uri: form.avatarUrl }} style={styles.avatarImage} /> : <Text style={styles.teamAvatarText}>{teamInitials(form.name || "Team")}</Text>}
+              </View>
+              <View style={styles.flex}>
+                <Text style={styles.avatarPickerTitle}>{form.name.trim() || "Team avatar"}</Text>
+                <Text style={styles.avatarPickerText}>Upload a square image for team lists, project ownership, and workspace member views.</Text>
+              </View>
+              <Pressable accessibilityRole="button" disabled={avatarUploading} onPress={onPickAvatar} style={styles.avatarPickerButton}>
+                {avatarUploading ? <ActivityIndicator color={colors.black} /> : <ImagePlus color={colors.black} size={17} strokeWidth={2.8} />}
+              </Pressable>
+            </View>
+            {form.avatarUrl ? (
+              <Pressable accessibilityRole="button" onPress={onClearAvatar} style={styles.clearAvatarButton}>
+                <X color={colors.danger} size={14} strokeWidth={2.8} />
+                <Text style={styles.clearAvatarText}>Remove selected avatar</Text>
+              </Pressable>
+            ) : null}
             <TeamInput autoFocus label="Team name" onChangeText={(name) => onChange({ ...form, name })} value={form.name} />
             <TeamInput label="Description" multiline onChangeText={(description) => onChange({ ...form, description })} value={form.description} />
             <Field label="Workspace">
@@ -795,7 +960,7 @@ function TeamCreateSheet({
               <Text style={styles.cancelText}>Cancel</Text>
             </Pressable>
             <Pressable accessibilityRole="button" disabled={saving || !form.name.trim()} onPress={onSave} style={[styles.saveBtn, (saving || !form.name.trim()) && styles.disabled]}>
-              <Text style={styles.saveText}>{saving ? "Creating..." : "Create team"}</Text>
+              <Text style={styles.saveText}>{saving ? "Saving..." : editing ? "Save changes" : "Create team"}</Text>
             </Pressable>
           </View>
         </View>
@@ -1017,6 +1182,26 @@ function parseBulkUsers(text: string) {
     .filter((user) => /@/.test(user.email));
 }
 
+async function uploadPickedTeamAsset(intent: UploadIntent, asset: PickedTeamAsset) {
+  if (!intent.uploadUrl) return undefined;
+  if (intent.method === "POST") {
+    const form = new FormData();
+    Object.entries(intent.fields ?? {}).forEach(([key, value]) => form.append(key, String(value)));
+    form.append("file", { name: asset.name, type: asset.mimeType || "application/octet-stream", uri: asset.uri } as unknown as Blob);
+    const response = await fetch(intent.uploadUrl, { body: form, method: "POST" });
+    if (!response.ok) throw new Error("Upload provider rejected the image.");
+    const payload = await response.json().catch(() => undefined);
+    if (payload && typeof payload === "object" && "secure_url" in payload && typeof payload.secure_url === "string") return payload.secure_url;
+    if (payload && typeof payload === "object" && "url" in payload && typeof payload.url === "string") return payload.url;
+    return undefined;
+  }
+  const fileResponse = await fetch(asset.uri);
+  const blob = await fileResponse.blob();
+  const response = await fetch(intent.uploadUrl, { body: blob, headers: intent.headers as Record<string, string>, method: intent.method });
+  if (!response.ok) throw new Error("Upload provider rejected the image.");
+  return undefined;
+}
+
 const styles = StyleSheet.create(withFontStyles({
   safe: { backgroundColor: colors.background, flex: 1 },
   content: { gap: 16, paddingBottom: 132, paddingHorizontal: 22, paddingTop: 18 },
@@ -1096,7 +1281,8 @@ const styles = StyleSheet.create(withFontStyles({
     ...shadow.card,
   },
   teamCardActive: { backgroundColor: colors.yellowSoft, borderColor: colors.primaryDark },
-  teamAvatar: { alignItems: "center", borderRadius: 16, height: 44, justifyContent: "center", width: 44 },
+  teamAvatar: { alignItems: "center", borderRadius: 16, height: 44, justifyContent: "center", overflow: "hidden", width: 44 },
+  avatarImage: { height: "100%", width: "100%" },
   teamAvatarText: { color: colors.white, fontSize: 13, fontWeight: "900" },
   teamName: { color: colors.foreground, fontSize: 15, fontWeight: "900" },
   teamMeta: { color: colors.inkSoft, fontSize: 12, fontWeight: "800", marginTop: 2 },
@@ -1104,10 +1290,13 @@ const styles = StyleSheet.create(withFontStyles({
   emptyRailCard: { alignItems: "center", backgroundColor: colors.white, borderColor: colors.line, borderRadius: radii.xl, borderWidth: 1, justifyContent: "center", minHeight: 90, padding: 16, width: 220 },
   panel: { backgroundColor: colors.white, borderColor: colors.line, borderRadius: radii["2xl"], borderWidth: 1, gap: 14, padding: 16, ...shadow.card },
   panelHeader: { alignItems: "center", flexDirection: "row", gap: 12 },
-  panelAvatar: { alignItems: "center", borderRadius: 18, height: 56, justifyContent: "center", width: 56 },
+  panelAvatar: { alignItems: "center", borderRadius: 18, height: 56, justifyContent: "center", overflow: "hidden", width: 56 },
   panelTitle: { color: colors.foreground, fontSize: 19, fontWeight: "900" },
   panelSub: { color: colors.inkSoft, fontSize: 12, fontWeight: "800", lineHeight: 17, marginTop: 2 },
   panelWorkspace: { color: colors.accent, fontSize: 11, fontWeight: "900", marginTop: 4 },
+  panelActions: { flexDirection: "row", gap: 8 },
+  panelIconButton: { alignItems: "center", backgroundColor: colors.panelMuted, borderColor: colors.line, borderRadius: 14, borderWidth: 1, height: 38, justifyContent: "center", width: 38 },
+  panelDangerButton: { backgroundColor: colors.redSoft, borderColor: "#fecaca" },
   miniStats: { backgroundColor: colors.panelMuted, borderRadius: radii.lg, flexDirection: "row", overflow: "hidden" },
   miniStat: { alignItems: "center", borderRightColor: colors.line, borderRightWidth: 1, flex: 1, paddingVertical: 10 },
   miniValue: { color: colors.foreground, fontSize: 17, fontWeight: "900" },
@@ -1181,6 +1370,22 @@ const styles = StyleSheet.create(withFontStyles({
   sheetTitle: { color: colors.foreground, fontSize: 24, fontWeight: "900", letterSpacing: -0.3 },
   closeBtn: { alignItems: "center", backgroundColor: colors.panelMuted, borderRadius: 16, height: 36, justifyContent: "center", width: 36 },
   sheetContent: { gap: 16, padding: 20 },
+  avatarPickerCard: {
+    alignItems: "center",
+    backgroundColor: colors.white,
+    borderColor: colors.line,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    padding: 12,
+  },
+  avatarPickerPreview: { alignItems: "center", borderRadius: 18, height: 58, justifyContent: "center", overflow: "hidden", width: 58 },
+  avatarPickerTitle: { color: colors.foreground, fontSize: 15, fontWeight: "900" },
+  avatarPickerText: { color: colors.inkSoft, fontSize: 12, fontWeight: "800", lineHeight: 17, marginTop: 2 },
+  avatarPickerButton: { alignItems: "center", backgroundColor: colors.primary, borderRadius: 16, height: 42, justifyContent: "center", width: 42 },
+  clearAvatarButton: { alignItems: "center", alignSelf: "flex-start", backgroundColor: colors.redSoft, borderColor: "#fecaca", borderRadius: 999, borderWidth: 1, flexDirection: "row", gap: 6, minHeight: 34, paddingHorizontal: 12 },
+  clearAvatarText: { color: colors.danger, fontSize: 12, fontWeight: "900" },
   sheetActions: { alignItems: "center", borderTopColor: colors.line, borderTopWidth: 1, flexDirection: "row", gap: 10, justifyContent: "flex-end", padding: 16 },
   cancelBtn: { alignItems: "center", backgroundColor: colors.white, borderColor: colors.line, borderRadius: radii.lg, borderWidth: 1, height: 50, justifyContent: "center", paddingHorizontal: 18 },
   cancelText: { color: colors.foreground, fontSize: 14, fontWeight: "900" },

@@ -8,10 +8,15 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.taskbricks.mobile"
+      "bundleIdentifier": "com.taskbricks.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.taskbricks.mobile",
@@ -20,12 +25,20 @@
         "backgroundColor": "#111111"
       }
     },
-    "plugins": ["expo-router", "expo-secure-store"],
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
-      "apiUrl": "https://taskbrick-be.onrender.com/api/v1"
-    }
+      "apiUrl": "https://taskbrick-be.onrender.com/api/v1",
+      "router": {},
+      "eas": {
+        "projectId": "4d73ef99-1612-4a52-bc76-66ab1db71bb4"
+      }
+    },
+    "owner": "logaxp"
   }
 }
