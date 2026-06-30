@@ -21,8 +21,8 @@
     "android": {
       "package": "com.taskbricks.mobile",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#111111"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#F8F6EF"
       }
     },
     "plugins": [
