@@ -38,6 +38,7 @@ import {
   RefreshCw,
   Search,
   ShieldAlert,
+  ShieldCheck,
   Target,
   Trash2,
   TrendingUp,
@@ -65,6 +66,7 @@ import {
   deleteBoardColumn,
   deleteTask,
   getProjectBoard,
+  getQaTaskSummary,
   addTeamMember,
   bulkInviteTenantUsers,
   cancelTeamMemberInvite,
@@ -94,6 +96,7 @@ import {
   type BoardAiHistoryEntry,
   type BoardAiRiskScanResponse,
   type BoardAiSummaryResponse,
+  type MobileQaTaskSummary,
   type TeamInviteResult,
 } from "@/lib/api";
 import { useAuthSession } from "@/lib/auth/AuthSessionProvider";
@@ -166,6 +169,14 @@ type PickerSheetState = {
   value: string;
 } | null;
 
+type BoardQaBadge = {
+  blocked: number;
+  failed: number;
+  passed: number;
+  ready: boolean;
+  total: number;
+};
+
 const boardViews: { label: string; value: PortfolioView }[] = [
   { label: "Summary", value: "summary" },
   { label: "Board", value: "board" },
@@ -216,6 +227,7 @@ export function PortfolioBoardScreen() {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [qaByTaskId, setQaByTaskId] = useState<Record<string, BoardQaBadge>>({});
   const [aiOpen, setAiOpen] = useState(false);
   const [aiLoading, setAiLoading] = useState<BoardAiMode | null>(null);
   const [aiResult, setAiResult] = useState<BoardAiState>(null);
@@ -291,6 +303,33 @@ export function PortfolioBoardScreen() {
   }, [accessToken, loadAiHistory, selectedProjectId]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const taskIdFingerprint = useMemo(() => tasks.map((task) => task.id).join("|"), [tasks]);
+
+  useEffect(() => {
+    if (!accessToken || !taskIdFingerprint) {
+      setQaByTaskId({});
+      return;
+    }
+    let cancelled = false;
+    const ids = taskIdFingerprint.split("|").filter(Boolean).slice(0, 80);
+    void Promise.allSettled(
+      ids.map(async (taskIdValue) => {
+        const summary = await getQaTaskSummary(accessToken, taskIdValue);
+        return [taskIdValue, normalizeBoardQaBadge(summary)] as const;
+      }),
+    ).then((results) => {
+      if (cancelled) return;
+      const next: Record<string, BoardQaBadge> = {};
+      results.forEach((result) => {
+        if (result.status !== "fulfilled") return;
+        const [taskIdValue, badge] = result.value;
+        if (badge) next[taskIdValue] = badge;
+      });
+      setQaByTaskId(next);
+    });
+    return () => { cancelled = true; };
+  }, [accessToken, taskIdFingerprint]);
 
   const columns = useMemo(() => buildColumns(board, tasks), [board, tasks]);
   const filteredTasks = useMemo(() => filterTasksByControls(tasks, filters), [filters, tasks]);
@@ -687,6 +726,7 @@ export function PortfolioBoardScreen() {
             onNudgeTask={nudgeTask}
             onEditTask={openEditTask}
             onOpenTask={(task) => openTaskDetail(task)}
+            qaByTaskId={qaByTaskId}
           />
         ) : null}
         {activeView === "list" ? <ListView onOpenTask={openTaskDetail} tasks={filteredTasks} /> : null}
@@ -1256,7 +1296,7 @@ function MetricCard({ bg, fg, icon, label, value }: { bg: string; fg: string; ic
 // ── Board view ────────────────────────────────────────────────────────────────
 
 function BoardView({
-  columns, onCreateTask, onEditColumn, onEditTask, onMoveColumn, onMoveTask, onNudgeTask, onOpenTask,
+  columns, onCreateTask, onEditColumn, onEditTask, onMoveColumn, onMoveTask, onNudgeTask, onOpenTask, qaByTaskId,
 }: {
   columns: WorkColumn[];
   onCreateTask: (column: WorkColumn) => void;
@@ -1266,6 +1306,7 @@ function BoardView({
   onMoveTask: (task: Task, direction: -1 | 1) => void;
   onNudgeTask: (task: Task, direction: -1 | 1) => void;
   onOpenTask: (task: Task, column: WorkColumn) => void;
+  qaByTaskId: Record<string, BoardQaBadge>;
 }) {
   return (
     <ScrollView contentContainerStyle={styles.boardContent} horizontal showsHorizontalScrollIndicator={false}>
@@ -1336,6 +1377,7 @@ function BoardView({
                 onNudge={onNudgeTask}
                 onEdit={() => onEditTask(task, column)}
                 onPress={() => onOpenTask(task, column)}
+                qa={qaByTaskId[task.id]}
                 task={task}
               />
             ))
@@ -1347,7 +1389,7 @@ function BoardView({
 }
 
 function TaskCard({
-  canMoveDown, canMoveLeft, canMoveRight, canMoveUp, onEdit, onMove, onNudge, onPress, task,
+  canMoveDown, canMoveLeft, canMoveRight, canMoveUp, onEdit, onMove, onNudge, onPress, qa, task,
 }: {
   canMoveDown: boolean;
   canMoveLeft: boolean;
@@ -1357,6 +1399,7 @@ function TaskCard({
   onMove: (task: Task, direction: -1 | 1) => void;
   onNudge: (task: Task, direction: -1 | 1) => void;
   onPress: () => void;
+  qa?: BoardQaBadge;
   task: Task;
 }) {
   const isBlocked = Boolean(task.card?.flags.isBlocked);
@@ -1406,6 +1449,7 @@ function TaskCard({
           <Text style={styles.taskKey}>{task.key ?? task.id.slice(0, 6).toUpperCase()}</Text>
           <StatusPill label={humanPriority(task.priority)} tone={priorityTone(task.priority)} />
           {isBlocked ? <StatusPill label="Blocked" tone="red" /> : null}
+          {qa?.total ? <TaskQaBadge qa={qa} /> : null}
         </View>
 
         {(task.dueDate || task.storyPoints) ? (
@@ -1441,6 +1485,22 @@ function TaskCard({
         </View>
       </Pressable>
     </Swipeable>
+  );
+}
+
+function TaskQaBadge({ qa }: { qa: BoardQaBadge }) {
+  const risky = qa.failed > 0 || qa.blocked > 0;
+  return (
+    <View style={[styles.taskQaBadge, risky ? styles.taskQaBadgeRisk : qa.ready ? styles.taskQaBadgeReady : styles.taskQaBadgePending]}>
+      {risky ? (
+        <ShieldAlert color={colors.danger} size={12} strokeWidth={2.6} />
+      ) : (
+        <ShieldCheck color={qa.ready ? colors.success : colors.warning} size={12} strokeWidth={2.6} />
+      )}
+      <Text style={[styles.taskQaBadgeText, risky ? styles.taskQaBadgeTextRisk : qa.ready ? styles.taskQaBadgeTextReady : styles.taskQaBadgeTextPending]}>
+        QA {qa.passed}/{qa.total}
+      </Text>
+    </View>
   );
 }
 
@@ -3014,6 +3074,19 @@ function buildSummary(tasks: Task[]) {
   };
 }
 
+function normalizeBoardQaBadge(summary: MobileQaTaskSummary): BoardQaBadge | null {
+  const executions = summary.executions;
+  const total = summary.linkedTestCases.length || executions.total || executions.passed + executions.failed + executions.blocked + executions.skipped;
+  if (!total) return null;
+  return {
+    blocked: executions.blocked,
+    failed: executions.failed,
+    passed: executions.passed,
+    ready: executions.ready,
+    total,
+  };
+}
+
 function calendarDays(selectedKey: string, tasks: Task[]) {
   return Array.from({ length: 9 }, (_, index) => {
     const key = shiftDateKey(selectedKey, index - 4);
@@ -3567,6 +3640,14 @@ const styles = StyleSheet.create({
   taskFacts: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   factPill: { alignItems: "center", backgroundColor: colors.panelMuted, borderRadius: 99, flexDirection: "row", gap: 4, paddingHorizontal: 8, paddingVertical: 4 },
   factText: { color: colors.inkSoft, fontSize: 11, fontWeight: "900" },
+  taskQaBadge: { alignItems: "center", borderRadius: 999, borderWidth: 1, flexDirection: "row", gap: 4, paddingHorizontal: 8, paddingVertical: 4 },
+  taskQaBadgePending: { backgroundColor: colors.orangeSoft, borderColor: "#fed7aa" },
+  taskQaBadgeReady: { backgroundColor: colors.greenSoft, borderColor: "#bbf7d0" },
+  taskQaBadgeRisk: { backgroundColor: colors.redSoft, borderColor: "#fecaca" },
+  taskQaBadgeText: { fontSize: 10, fontWeight: "900", letterSpacing: 0.2 },
+  taskQaBadgeTextPending: { color: colors.warning },
+  taskQaBadgeTextReady: { color: colors.success },
+  taskQaBadgeTextRisk: { color: colors.danger },
   cardActions: { flexDirection: "row", gap: 6 },
   cardActionBtn: { alignItems: "center", backgroundColor: colors.panelMuted, borderRadius: 10, flex: 1, height: 32, justifyContent: "center" },
   swipeAction: { alignItems: "center", backgroundColor: colors.primary, borderRadius: radii.md, justifyContent: "center", marginVertical: 2, width: 88 },

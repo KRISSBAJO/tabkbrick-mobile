@@ -14,6 +14,7 @@ export * from "./integrationWorkflowApi";
 export * from "./meetingApi";
 export * from "./notificationApi";
 export * from "./projectApi";
+export * from "./qaApi";
 export * from "./reportingApi";
 export * from "./request";
 export * from "./searchApi";

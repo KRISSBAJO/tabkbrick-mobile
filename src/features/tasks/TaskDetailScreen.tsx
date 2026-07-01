@@ -6,6 +6,7 @@ import { router, type Href } from "expo-router";
 import {
   ArrowLeft,
   Archive,
+  Bug,
   CalendarDays,
   CheckCircle2,
   CheckSquare2,
@@ -18,6 +19,7 @@ import {
   RotateCcw,
   Send,
   ShieldAlert,
+  ShieldCheck,
   Tag,
   Trash2,
   Upload,
@@ -30,7 +32,12 @@ import {
   addTaskWatcher,
   archiveTask,
   assignTaskLabel,
+  completeQaTestRun,
   createLabel,
+  createQaDefectFromExecution,
+  createQaExecution,
+  createQaTestCase,
+  createQaTestRun,
   createFileAsset,
   createTaskAttachment,
   createTaskChecklist,
@@ -45,6 +52,7 @@ import {
   deleteTaskComment,
   deleteTaskDependency,
   getTask,
+  getQaTaskSummary,
   listLabels,
   listTaskActivities,
   listTaskAssignees,
@@ -62,6 +70,9 @@ import {
   restoreTask,
   updateTaskChecklistItem,
   updateTask,
+  type MobileQaExecutionStatus,
+  type MobileQaLatestExecution,
+  type MobileQaTaskSummary,
 } from "@/lib/api";
 import { useAuthSession } from "@/lib/auth/AuthSessionProvider";
 import { withFontStyles } from "@/lib/theme/fontDefaults";
@@ -99,6 +110,7 @@ type TaskAction =
   | "addChecklistItem"
   | "addDependency"
   | "addLabel"
+  | "addQaCase"
   | "addWatcher"
   | "createLabel"
   | "editTask"
@@ -145,6 +157,7 @@ export function TaskDetailScreen({ returnTo, taskId }: { returnTo?: string; task
   const [data, setData] = useState<TaskDetailData | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [qaSummary, setQaSummary] = useState<MobileQaTaskSummary | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [action, setAction] = useState<TaskAction>(null);
@@ -174,7 +187,7 @@ export function TaskDetailScreen({ returnTo, taskId }: { returnTo?: string; task
     else setLoading(true);
     setError("");
     try {
-      const [task, comments, activities, checklists, attachments, dependencies, labels, assignees, watchers] =
+      const [task, comments, activities, checklists, attachments, dependencies, labels, assignees, watchers, qa] =
         await Promise.all([
           getTask(accessToken, taskId),
           safe(listTaskComments(accessToken, taskId), []),
@@ -185,8 +198,10 @@ export function TaskDetailScreen({ returnTo, taskId }: { returnTo?: string; task
           safe(listTaskLabels(accessToken, taskId), []),
           safe(listTaskAssignees(accessToken, taskId), []),
           safe(listTaskWatchers(accessToken, taskId), []),
+          safe(getQaTaskSummary(accessToken, taskId), null),
         ]);
       setData({ activities, assignees, attachments, checklists, comments, dependencies, labels, task, watchers });
+      setQaSummary(qa);
       const [usersPage, labelsList, tasksPage] = await Promise.all([
         safe(listUsers(accessToken, { limit: 100, page: 1 }), { data: [], limit: 100, page: 1, total: 0, totalPages: 0 }),
         safe(listLabels(accessToken), []),
@@ -215,6 +230,14 @@ export function TaskDetailScreen({ returnTo, taskId }: { returnTo?: string; task
   const assignedUserIds = useMemo(() => new Set(data?.assignees.map((item) => item.user.id) ?? []), [data?.assignees]);
   const watcherUserIds = useMemo(() => new Set(data?.watchers.map((item) => item.userId ?? item.user?.id).filter(Boolean) as string[]), [data?.watchers]);
   const assignedLabelIds = useMemo(() => new Set(data?.labels.map((item) => item.label.id) ?? []), [data?.labels]);
+  const qaLatestByCase = useMemo(() => {
+    const next = new Map<string, MobileQaLatestExecution>();
+    qaSummary?.latestExecutions.forEach((execution) => {
+      if (execution.testCaseId) next.set(execution.testCaseId, execution);
+    });
+    return next;
+  }, [qaSummary?.latestExecutions]);
+  const qaStats = qaSummary?.executions ?? { blocked: 0, failed: 0, passRate: 0, passed: 0, ready: false, skipped: 0, total: 0, untested: 0 };
 
   const filteredUsers = useMemo(() => {
     const query = draft.search.trim().toLowerCase();
@@ -426,6 +449,77 @@ export function TaskDetailScreen({ returnTo, taskId }: { returnTo?: string; task
     );
   }
 
+  async function handleCreateQaCase() {
+    if (!accessToken || !task || !draft.title.trim()) return;
+    const projectId = getTaskProjectId(task);
+    if (!projectId) {
+      setError("This task is not attached to a project, so QA cannot be linked.");
+      return;
+    }
+    await runMutation(
+      () => createQaTestCase(accessToken, {
+        expectedResult: draft.description.trim() || undefined,
+        linkType: "ACCEPTANCE",
+        priority: mapTaskPriorityToQa(task.priority),
+        projectId,
+        taskId: task.id,
+        title: draft.title.trim(),
+        type: "FUNCTIONAL",
+      }),
+      "Unable to create QA test case.",
+      true,
+    );
+  }
+
+  async function handleRecordQaResult(testCaseId: string, testTitle: string, status: MobileQaExecutionStatus) {
+    if (!accessToken || !task) return;
+    const projectId = getTaskProjectId(task);
+    if (!projectId) {
+      setError("This task is not attached to a project, so QA cannot be executed.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const run = await createQaTestRun(accessToken, {
+        name: `${task.key} mobile QA - ${testTitle}`.slice(0, 240),
+        projectId,
+        source: "MANUAL",
+        status: "RUNNING",
+        taskId: task.id,
+        testCaseIds: [testCaseId],
+      });
+      await createQaExecution(accessToken, run.id, {
+        actualResult: status === "PASSED" ? "Validated from mobile." : undefined,
+        failureMessage: status === "FAILED" ? "Failed during mobile manual QA." : undefined,
+        notes: status === "BLOCKED" ? "Blocked during mobile manual QA." : undefined,
+        status,
+        taskId: task.id,
+        testCaseId,
+        title: `${testTitle} - ${qaStatusLabel(status)}`.slice(0, 240),
+      });
+      await completeQaTestRun(accessToken, run.id);
+      await load(true);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to record QA result.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleCreateQaDefect(execution: MobileQaLatestExecution, testTitle: string) {
+    if (!accessToken || !task) return;
+    await runMutation(
+      () => createQaDefectFromExecution(accessToken, execution.testRunId, execution.id, {
+        description: `Created from mobile QA failure for ${task.key}.\n\nTest case: ${testTitle}`,
+        priority: task.priority === "LOW" ? "MEDIUM" : task.priority,
+        title: `Fix QA failure: ${testTitle}`.slice(0, 240),
+        type: "BUG",
+      }),
+      "Unable to create bug from QA failure.",
+    );
+  }
+
   function confirmDelete(title: string, message: string, onConfirm: () => void) {
     Alert.alert(title, message, [
       { style: "cancel", text: "Cancel" },
@@ -582,6 +676,24 @@ export function TaskDetailScreen({ returnTo, taskId }: { returnTo?: string; task
                 <>
                   <ManagedInput label="Checklist title" onChangeText={(titleValue) => setDraft((current) => ({ ...current, title: titleValue }))} placeholder="Acceptance checklist" value={draft.title} />
                   <PrimaryModalButton disabled={!draft.title.trim() || saving} label={saving ? "Creating..." : "Create checklist"} onPress={() => void handleCreateChecklist()} />
+                </>
+              ) : null}
+
+              {action === "addQaCase" ? (
+                <>
+                  <ManagedInput label="Test case title" onChangeText={(titleValue) => setDraft((current) => ({ ...current, title: titleValue }))} placeholder="Validate acceptance criteria" value={draft.title} />
+                  <View style={styles.managedInputBlock}>
+                    <Text style={styles.managedInputLabel}>Expected result</Text>
+                    <TextInput
+                      multiline
+                      onChangeText={(description) => setDraft((current) => ({ ...current, description }))}
+                      placeholder="What should be true when this passes?"
+                      placeholderTextColor={colors.inkSoft}
+                      style={[styles.managedInput, styles.managedTextArea]}
+                      value={draft.description}
+                    />
+                  </View>
+                  <PrimaryModalButton disabled={!draft.title.trim() || saving} label={saving ? "Creating..." : "Create QA case"} onPress={() => void handleCreateQaCase()} />
                 </>
               ) : null}
 
@@ -972,6 +1084,69 @@ export function TaskDetailScreen({ returnTo, taskId }: { returnTo?: string; task
         </ContentCard>
 
         <ContentCard
+          action={<SectionAction label="New" onPress={() => openAction("addQaCase")} />}
+          icon={<ShieldCheck color={colors.accent} size={17} strokeWidth={2.5} />}
+          title="QA validation"
+          count={qaSummary?.linkedTestCases.length ?? 0}
+        >
+          <View style={styles.qaStatsRow}>
+            <QaMetric color={qaStats.ready ? colors.success : colors.warning} label="Pass rate" value={`${qaStats.passRate}%`} />
+            <QaMetric color={colors.success} label="Passed" value={String(qaStats.passed)} />
+            <QaMetric color={colors.danger} label="Failed" value={String(qaStats.failed)} />
+            <QaMetric color={colors.warning} label="Blocked" value={String(qaStats.blocked)} />
+          </View>
+          {qaSummary?.linkedTestCases.length ? (
+            <View style={styles.qaCaseStack}>
+              {qaSummary.linkedTestCases.map((link) => {
+                const testCase = link.testCase;
+                const latest = qaLatestByCase.get(testCase.id);
+                return (
+                  <View key={link.id} style={styles.qaCase}>
+                    <View style={styles.qaCaseHeader}>
+                      <View style={styles.qaCaseTitleBlock}>
+                        <Text numberOfLines={2} style={styles.qaCaseTitle}>{testCase.title}</Text>
+                        <Text numberOfLines={1} style={styles.qaCaseMeta}>
+                          {testCase.type.replace(/_/g, " ")} · {testCase.priority.toLowerCase()}
+                        </Text>
+                      </View>
+                      <QaStatusBadge status={latest?.status ?? "UNTESTED"} />
+                    </View>
+                    {testCase.expectedResult ? (
+                      <Text numberOfLines={3} style={styles.qaExpected}>{testCase.expectedResult}</Text>
+                    ) : null}
+                    <View style={styles.qaButtonRow}>
+                      {(["PASSED", "FAILED", "BLOCKED", "SKIPPED"] as const).map((status) => (
+                        <QaActionButton
+                          key={status}
+                          label={qaStatusLabel(status)}
+                          onPress={() => void handleRecordQaResult(testCase.id, testCase.title, status)}
+                          tone={status}
+                        />
+                      ))}
+                    </View>
+                    {latest?.status === "FAILED" && !latest.defectTask ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        disabled={saving}
+                        onPress={() => void handleCreateQaDefect(latest, testCase.title)}
+                        style={styles.qaBugButton}
+                      >
+                        <Bug color={colors.danger} size={14} strokeWidth={2.8} />
+                        <Text style={styles.qaBugButtonText}>Create bug from failure</Text>
+                      </Pressable>
+                    ) : latest?.defectTask ? (
+                      <Text numberOfLines={1} style={styles.qaDefectText}>Bug linked: {latest.defectTask.key ?? latest.defectTask.title ?? "Created"}</Text>
+                    ) : null}
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
+            <EmptyPanel text="No QA cases yet. Add acceptance tests before moving this work to Done." />
+          )}
+        </ContentCard>
+
+        <ContentCard
           action={<SectionAction label="New" onPress={() => openAction("addChecklist")} />}
           icon={<CheckCircle2 color={colors.accent} size={17} strokeWidth={2.5} />}
           title="Checklists"
@@ -1256,6 +1431,29 @@ function priorityAccent(priority: string): string {
   return colors.inkSoft;
 }
 
+function getTaskProjectId(task: Task) {
+  const record = task as Task & { projectId?: string; project?: { id?: string } | null };
+  return record.projectId ?? record.project?.id ?? "";
+}
+
+function mapTaskPriorityToQa(priority: Task["priority"]) {
+  if (priority === "CRITICAL") return "CRITICAL";
+  if (priority === "HIGH" || priority === "URGENT") return "HIGH";
+  if (priority === "LOW") return "LOW";
+  return "MEDIUM";
+}
+
+function qaStatusLabel(status: MobileQaExecutionStatus) {
+  const labels: Record<MobileQaExecutionStatus, string> = {
+    BLOCKED: "Blocked",
+    FAILED: "Failed",
+    PASSED: "Passed",
+    SKIPPED: "Skipped",
+    UNTESTED: "Untested",
+  };
+  return labels[status];
+}
+
 function initials(user: TenantUser) {
   const name = displayUserName(user);
   return name.split(/\s+/).slice(0, 2).map((part) => part.charAt(0)).join("").toUpperCase() || "U";
@@ -1269,6 +1467,7 @@ function actionTitle(action: Exclude<TaskAction, null>) {
     addChecklistItem: "Add checklist item",
     addDependency: "Add dependency",
     addLabel: "Add label",
+    addQaCase: "Create QA case",
     addWatcher: "Add watcher",
     createLabel: "Create label",
     editTask: "Edit task",
@@ -1284,6 +1483,7 @@ function actionSubtitle(action: Exclude<TaskAction, null>) {
     addChecklistItem: "Add the next small, verifiable step.",
     addDependency: "Connect this work to a blocker or related task.",
     addLabel: "Classify the task for filtering and reporting.",
+    addQaCase: "Define a test that proves this task is ready.",
     addWatcher: "Notify teammates who need progress updates.",
     createLabel: "Create a reusable workspace label and add it here.",
     editTask: "Update the task identity, classification, schedule, and effort.",
@@ -1383,6 +1583,49 @@ function SignalCard({ icon, label, tint, value }: { icon: ReactNode; label: stri
       <Text style={styles.signalLabel}>{label}</Text>
     </View>
   );
+}
+
+function QaMetric({ color, label, value }: { color: string; label: string; value: string }) {
+  return (
+    <View style={styles.qaMetric}>
+      <Text style={[styles.qaMetricValue, { color }]}>{value}</Text>
+      <Text style={styles.qaMetricLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function QaStatusBadge({ status }: { status: MobileQaExecutionStatus }) {
+  const tone = qaStatusTone(status);
+  return (
+    <View style={[styles.qaStatusBadge, { backgroundColor: tone.bg, borderColor: tone.border }]}>
+      <Text style={[styles.qaStatusText, { color: tone.fg }]}>{qaStatusLabel(status)}</Text>
+    </View>
+  );
+}
+
+function QaActionButton({
+  label,
+  onPress,
+  tone,
+}: {
+  label: string;
+  onPress: () => void;
+  tone: MobileQaExecutionStatus;
+}) {
+  const colorsForTone = qaStatusTone(tone);
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={[styles.qaActionButton, { borderColor: colorsForTone.border }]}>
+      <Text style={[styles.qaActionButtonText, { color: colorsForTone.fg }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function qaStatusTone(status: MobileQaExecutionStatus) {
+  if (status === "PASSED") return { bg: colors.greenSoft, border: "#bbf7d0", fg: colors.success };
+  if (status === "FAILED") return { bg: colors.redSoft, border: "#fecaca", fg: colors.danger };
+  if (status === "BLOCKED") return { bg: colors.orangeSoft, border: "#fed7aa", fg: colors.warning };
+  if (status === "SKIPPED") return { bg: colors.blueSoft, border: "#bfdbfe", fg: colors.accent };
+  return { bg: colors.panelMuted, border: colors.line, fg: colors.inkSoft };
 }
 
 function DetailRow({ label, last, value }: { label: string; last?: boolean; value: string }) {
@@ -1717,6 +1960,91 @@ const styles = StyleSheet.create(withFontStyles({
     paddingVertical: 6,
   },
   tagText: { color: "#7a5800", fontSize: 12, fontWeight: "900" },
+
+  // QA validation
+  qaStatsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  qaMetric: {
+    backgroundColor: colors.panelMuted,
+    borderColor: colors.line,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    flexGrow: 1,
+    minWidth: "46%",
+    padding: 12,
+  },
+  qaMetricValue: { fontSize: 18, fontWeight: "900", letterSpacing: -0.3 },
+  qaMetricLabel: {
+    color: colors.inkSoft,
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+    marginTop: 4,
+    textTransform: "uppercase",
+  },
+  qaCaseStack: { gap: 12 },
+  qaCase: {
+    backgroundColor: colors.panelMuted,
+    borderColor: colors.line,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    gap: 10,
+    padding: 14,
+  },
+  qaCaseHeader: { alignItems: "flex-start", flexDirection: "row", gap: 10 },
+  qaCaseTitleBlock: { flex: 1, minWidth: 0 },
+  qaCaseTitle: { color: colors.foreground, fontSize: 14, fontWeight: "900", lineHeight: 20 },
+  qaCaseMeta: {
+    color: colors.inkSoft,
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+    marginTop: 4,
+    textTransform: "uppercase",
+  },
+  qaExpected: { color: colors.inkSoft, fontSize: 12, fontWeight: "700", lineHeight: 18 },
+  qaStatusBadge: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  qaStatusText: {
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.45,
+    textTransform: "uppercase",
+  },
+  qaButtonRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  qaActionButton: {
+    backgroundColor: colors.panel,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+  },
+  qaActionButtonText: { fontSize: 11, fontWeight: "900" },
+  qaBugButton: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: colors.redSoft,
+    borderColor: "#fecaca",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  qaBugButtonText: { color: colors.danger, fontSize: 11, fontWeight: "900" },
+  qaDefectText: { color: colors.danger, fontSize: 12, fontWeight: "800" },
 
   // Checklists
   checklistStack: { gap: 16 },

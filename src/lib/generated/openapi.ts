@@ -9091,6 +9091,404 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/qa/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** QA and test management module readiness check */
+        get: operations["Qa_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/qa/taxonomy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get QA taxonomy values for cases, plans, runs, executions, and evidence */
+        get: operations["Qa_taxonomy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/qa/projects/{projectId}/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get QA health summary for a project */
+        get: operations["Qa_getProjectSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/qa/projects/{projectId}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get project QA gate settings */
+        get: operations["Qa_getProjectSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update project QA gate settings */
+        patch: operations["Qa_updateProjectSettings"];
+        trace?: never;
+    };
+    "/api/v1/qa/tasks/{taskId}/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get linked QA cases, runs, evidence, and status summary for a task */
+        get: operations["Qa_getTaskSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/qa/test-cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List QA test cases */
+        get: operations["Qa_listTestCases"];
+        put?: never;
+        /** Create a QA test case */
+        post: operations["Qa_createTestCase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/qa/test-cases/{testCaseId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a QA test case */
+        get: operations["Qa_getTestCase"];
+        put?: never;
+        post?: never;
+        /** Archive a QA test case */
+        delete: operations["Qa_archiveTestCase"];
+        options?: never;
+        head?: never;
+        /** Update a QA test case */
+        patch: operations["Qa_updateTestCase"];
+        trace?: never;
+    };
+    "/api/v1/qa/test-cases/{testCaseId}/task-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Link a QA test case to a task */
+        post: operations["Qa_linkTestCaseToTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/qa/test-cases/{testCaseId}/task-links/{taskId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Unlink a QA test case from a task */
+        delete: operations["Qa_unlinkTestCaseFromTask"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/qa/test-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List QA test plans */
+        get: operations["Qa_listPlans"];
+        put?: never;
+        /** Create a QA test plan */
+        post: operations["Qa_createPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/qa/test-plans/{planId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a QA test plan */
+        get: operations["Qa_getPlan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update a QA test plan */
+        patch: operations["Qa_updatePlan"];
+        trace?: never;
+    };
+    "/api/v1/qa/test-plans/{planId}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Archive a QA test plan */
+        post: operations["Qa_archivePlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/qa/test-plans/{planId}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add a QA test case to a test plan */
+        post: operations["Qa_addPlanItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/qa/test-plans/{planId}/items/{testCaseId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a QA test case from a test plan */
+        delete: operations["Qa_removePlanItem"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/qa/test-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List QA test runs */
+        get: operations["Qa_listRuns"];
+        put?: never;
+        /** Create and optionally seed a QA test run */
+        post: operations["Qa_createRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/qa/test-runs/{runId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a QA test run with executions and evidence */
+        get: operations["Qa_getRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/qa/test-runs/{runId}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete a QA test run */
+        post: operations["Qa_completeRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/qa/test-runs/{runId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel a QA test run */
+        post: operations["Qa_cancelRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/qa/test-runs/{runId}/executions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a manual QA execution inside a test run */
+        post: operations["Qa_createExecution"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/qa/test-runs/{runId}/executions/{executionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update a QA execution result */
+        patch: operations["Qa_updateExecution"];
+        trace?: never;
+    };
+    "/api/v1/qa/test-runs/{runId}/executions/{executionId}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Attach evidence to a QA execution */
+        post: operations["Qa_addEvidence"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/qa/test-runs/{runId}/executions/{executionId}/create-defect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a bug task from a failed QA execution */
+        post: operations["Qa_createDefectFromExecution"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/qa/imports/junit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import automated JUnit XML test results into a QA run */
+        post: operations["Qa_importJunit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reporting/status": {
         parameters: {
             query?: never;
@@ -16525,6 +16923,158 @@ export interface components {
             entityId?: string;
             input?: Record<string, never>;
             idempotencyKey?: string;
+        };
+        UpdateQaProjectSettingsDto: {
+            qaGateEnabled?: boolean;
+            qaGateMinimumPassRate?: number;
+        };
+        CreateQaTestCaseDto: {
+            projectId: string;
+            title: string;
+            description?: string;
+            /** @enum {string} */
+            type?: "FUNCTIONAL" | "REGRESSION" | "SMOKE" | "INTEGRATION" | "PERFORMANCE" | "SECURITY" | "ACCESSIBILITY" | "ACCEPTANCE";
+            /** @enum {string} */
+            priority?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+            /** @enum {string} */
+            status?: "DRAFT" | "ACTIVE" | "DEPRECATED" | "ARCHIVED";
+            preconditions?: string;
+            /** @description Ordered manual test steps as JSON. */
+            steps?: Record<string, never>;
+            expectedResult?: string;
+            tags?: string[];
+            automationKey?: string;
+            estimateMins?: number;
+            metadata?: Record<string, never>;
+            /** @description Optional initial task to link this test case to. */
+            taskId?: string;
+            /** @enum {string} */
+            linkType?: "COVERS" | "REGRESSION" | "ACCEPTANCE" | "BLOCKER";
+        };
+        UpdateQaTestCaseDto: {
+            title?: string;
+            description?: Record<string, never>;
+            /** @enum {string} */
+            type?: "FUNCTIONAL" | "REGRESSION" | "SMOKE" | "INTEGRATION" | "PERFORMANCE" | "SECURITY" | "ACCESSIBILITY" | "ACCEPTANCE";
+            /** @enum {string} */
+            priority?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+            /** @enum {string} */
+            status?: "DRAFT" | "ACTIVE" | "DEPRECATED" | "ARCHIVED";
+            preconditions?: Record<string, never>;
+            steps?: Record<string, never>;
+            expectedResult?: Record<string, never>;
+            tags?: string[];
+            automationKey?: Record<string, never>;
+            estimateMins?: Record<string, never>;
+            metadata?: Record<string, never>;
+        };
+        LinkQaTestCaseTaskDto: {
+            taskId: string;
+            /** @enum {string} */
+            linkType?: "COVERS" | "REGRESSION" | "ACCEPTANCE" | "BLOCKER";
+        };
+        CreateQaTestPlanDto: {
+            projectId: string;
+            sprintId?: string;
+            name: string;
+            description?: string;
+            /** @enum {string} */
+            status?: "PLANNED" | "ACTIVE" | "COMPLETED" | "ARCHIVED";
+            releaseName?: string;
+            milestone?: string;
+            startDate?: string;
+            endDate?: string;
+            testCaseIds?: string[];
+            metadata?: Record<string, never>;
+        };
+        UpdateQaTestPlanDto: {
+            name?: string;
+            description?: Record<string, never>;
+            /** @enum {string} */
+            status?: "PLANNED" | "ACTIVE" | "COMPLETED" | "ARCHIVED";
+            releaseName?: Record<string, never>;
+            milestone?: Record<string, never>;
+            startDate?: string | null;
+            endDate?: string | null;
+            metadata?: Record<string, never>;
+        };
+        AddQaTestPlanItemDto: {
+            testCaseId: string;
+            sortOrder?: number;
+        };
+        CreateQaTestRunDto: {
+            projectId: string;
+            sprintId?: string;
+            planId?: string;
+            taskId?: string;
+            name: string;
+            /** @enum {string} */
+            source?: "MANUAL" | "AUTOMATION" | "CI" | "API";
+            /** @enum {string} */
+            status?: "QUEUED" | "RUNNING" | "COMPLETED" | "CANCELLED";
+            provider?: string;
+            externalRunId?: string;
+            environment?: string;
+            buildVersion?: string;
+            /** @description Explicit test cases. Defaults to plan/task linked cases. */
+            testCaseIds?: string[];
+        };
+        CreateQaExecutionDto: {
+            /** @enum {string} */
+            status?: "UNTESTED" | "PASSED" | "FAILED" | "BLOCKED" | "SKIPPED" | "FLAKY";
+            notes?: Record<string, never>;
+            actualResult?: Record<string, never>;
+            durationMs?: Record<string, never>;
+            failureMessage?: Record<string, never>;
+            failureStack?: Record<string, never>;
+            executedAt?: string | null;
+            metadata?: Record<string, never>;
+            testCaseId?: string;
+            taskId?: string;
+            title: string;
+        };
+        UpdateQaTestExecutionDto: {
+            /** @enum {string} */
+            status?: "UNTESTED" | "PASSED" | "FAILED" | "BLOCKED" | "SKIPPED" | "FLAKY";
+            notes?: Record<string, never>;
+            actualResult?: Record<string, never>;
+            durationMs?: Record<string, never>;
+            failureMessage?: Record<string, never>;
+            failureStack?: Record<string, never>;
+            executedAt?: string | null;
+            metadata?: Record<string, never>;
+        };
+        CreateQaEvidenceDto: {
+            testCaseId?: string;
+            taskId?: string;
+            /** @enum {string} */
+            type?: "SCREENSHOT" | "VIDEO" | "LOG" | "FILE" | "LINK" | "NOTE";
+            title: string;
+            url?: string;
+            fileAssetId?: string;
+            notes?: string;
+            metadata?: Record<string, never>;
+        };
+        CreateQaDefectDto: {
+            title?: string;
+            description?: string;
+            /** @enum {string} */
+            type?: "TASK" | "BUG" | "STORY" | "EPIC" | "FEATURE" | "INCIDENT" | "APPROVAL" | "CHANGE_REQUEST" | "MILESTONE";
+            /** @enum {string} */
+            priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT" | "CRITICAL";
+        };
+        ImportJunitResultsDto: {
+            projectId: string;
+            sprintId?: string;
+            planId?: string;
+            taskId?: string;
+            name?: string;
+            provider?: string;
+            externalRunId?: string;
+            environment?: string;
+            buildVersion?: string;
+            /** @description JUnit XML content. */
+            xml: string;
         };
         CreateDashboardDto: {
             name: string;
@@ -33461,6 +34011,772 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    Qa_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_taxonomy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_getProjectSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_getProjectSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_updateProjectSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateQaProjectSettingsDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_getTaskSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                taskId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_listTestCases: {
+        parameters: {
+            query?: {
+                page?: number;
+                limit?: number;
+                search?: string;
+                projectId?: string;
+                sprintId?: string;
+                taskId?: string;
+                status?: "DRAFT" | "ACTIVE" | "DEPRECATED" | "ARCHIVED";
+                type?: "FUNCTIONAL" | "REGRESSION" | "SMOKE" | "INTEGRATION" | "PERFORMANCE" | "SECURITY" | "ACCESSIBILITY" | "ACCEPTANCE";
+                priority?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_createTestCase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateQaTestCaseDto"];
+            };
+        };
+        responses: {
+            /** @description Created QA test case */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_getTestCase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                testCaseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_archiveTestCase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                testCaseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_updateTestCase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                testCaseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateQaTestCaseDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_linkTestCaseToTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                testCaseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkQaTestCaseTaskDto"];
+            };
+        };
+        responses: {
+            /** @description Linked QA test case to task */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_unlinkTestCaseFromTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                testCaseId: string;
+                taskId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_listPlans: {
+        parameters: {
+            query?: {
+                page?: number;
+                limit?: number;
+                search?: string;
+                projectId?: string;
+                sprintId?: string;
+                taskId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_createPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateQaTestPlanDto"];
+            };
+        };
+        responses: {
+            /** @description Created QA test plan */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_getPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_updatePlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateQaTestPlanDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_archivePlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_addPlanItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddQaTestPlanItemDto"];
+            };
+        };
+        responses: {
+            /** @description Added QA test case to test plan */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_removePlanItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                testCaseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_listRuns: {
+        parameters: {
+            query?: {
+                page?: number;
+                limit?: number;
+                search?: string;
+                projectId?: string;
+                sprintId?: string;
+                taskId?: string;
+                status?: "QUEUED" | "RUNNING" | "COMPLETED" | "CANCELLED";
+                source?: "MANUAL" | "AUTOMATION" | "CI" | "API";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_createRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateQaTestRunDto"];
+            };
+        };
+        responses: {
+            /** @description Created QA test run */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_getRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_completeRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Completed QA test run */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_cancelRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cancelled QA test run */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_createExecution: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateQaExecutionDto"];
+            };
+        };
+        responses: {
+            /** @description Created QA execution */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_updateExecution: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+                executionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateQaTestExecutionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_addEvidence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+                executionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateQaEvidenceDto"];
+            };
+        };
+        responses: {
+            /** @description Attached QA evidence */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_createDefectFromExecution: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+                executionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateQaDefectDto"];
+            };
+        };
+        responses: {
+            /** @description Created defect task from QA execution */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    Qa_importJunit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportJunitResultsDto"];
+            };
+        };
+        responses: {
+            /** @description Imported JUnit results into QA run */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
             };
         };
     };
